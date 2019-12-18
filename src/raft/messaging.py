@@ -12,19 +12,28 @@ class ClientDisconnected(Exception):
 
 
 AppendEntries = NamedTuple(
-    "AppendEntries",
-    log_index=int,
-    prev_log_term=int,
-    entry=str,
-    leader_commit=int,
+    "AppendEntries", log_index=int, prev_log_term=int, entry=str, leader_commit=int
 )
 AppendEntriesSucceeded = NamedTuple("AppendEntriesSucceeded", replicated_index=int)
 AppendEntriesFailed = NamedTuple("AppendEntriesFailed", reason=Exception)
 InvalidTerm = NamedTuple("InvalidTerm")
+RequestVote = NamedTuple(
+    "RequestVote", candidate_id=int, last_log_index=int, last_log_term=int
+)
+VoteGranted = NamedTuple("VoteGranted")
+VoteDenied = NamedTuple("VoteDenied", reason=Exception)
 
 
 class Message:
-    ALLOWED_MESSAGES = (AppendEntries, AppendEntriesSucceeded, AppendEntriesFailed, InvalidTerm)
+    ALLOWED_MESSAGES = (
+        AppendEntries,
+        AppendEntriesSucceeded,
+        AppendEntriesFailed,
+        InvalidTerm,
+        RequestVote,
+        VoteGranted,
+        VoteDenied,
+    )
 
     def __init__(self, sender, term, content):
         if not isinstance(content, self.ALLOWED_MESSAGES):
