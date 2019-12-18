@@ -24,8 +24,9 @@ class RaftServer:
         self.commit_index = 0
         self.voted_for = None
         self.leader_id = None
+        self.received_votes = set()
 
-        self.log = Log()  # todo: put a lock around it
+        self.log = Log()  # todo: put a lock around it?
 
         self.state = State.FOLLOWER
 
@@ -54,8 +55,17 @@ class RaftServer:
     def become_follower(self):
         self.state = State.FOLLOWER
 
+    def become_candidate(self):
+        pass
+
     def handle_election_timeout(self):
         pass
+
+    def handle_vote_granted(self, voter_id):
+        self.received_votes.add(voter_id)
+
+        if len(self.received_votes) > self.num_servers // 2:
+            self.become_leader()
 
     def handle_message(self, message: Message):
         message_handlers = {
@@ -63,7 +73,7 @@ class RaftServer:
             AppendEntriesSucceeded: self.handle_append_entries_succeeded,
             AppendEntriesFailed: self.handle_append_entries_failed,
             RequestVote: self.handle_request_vote,
-            # VoteGranted: self.handle_vote_granted,
+            VoteGranted: self.handle_vote_granted,
             # VoteDenied: self.handle_vote_denied,
         }
         self._logger.info(
@@ -111,7 +121,7 @@ class RaftServer:
                 f"candidate log was on term {last_log_term} while own log length was {self.log.last_term}"
             )
 
-        return VoteGranted()
+        return VoteGranted(self.server_no)
 
     def _send_append_entries(self, server_no):
         if not self.state == State.LEADER:
