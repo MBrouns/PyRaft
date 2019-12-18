@@ -38,6 +38,8 @@ class Log:
         # “taking back” entries that we may have already told the leader that we have in our log.
         if len(self) > log_index and self[log_index].term != entry.term:
             self._log[log_index:] = [entry]
+        elif len(self) > log_index:
+            self._log[log_index] = entry
         else:
             self._log.append(entry)
 

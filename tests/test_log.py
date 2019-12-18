@@ -44,7 +44,7 @@ def test_log_append_no_truncate():
     log.append(log_index=2, prev_log_term=0, entry=entry)
     log.append(log_index=0, prev_log_term=0, entry=entry)
     assert log[0] == entry
-    assert len(log) == 4
+    assert len(log) == 3
 
 
 def test_log_append_entries_conflict():

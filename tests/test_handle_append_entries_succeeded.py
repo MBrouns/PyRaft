@@ -13,4 +13,4 @@ def test_handle_append_entries_succeeded(no_network_raft_leader_with_log):
     assert resp is None
 
     assert no_network_raft_leader_with_log.match_index == [0, 1, 0]
-    assert no_network_raft_leader_with_log.next_index == [6, 2, 6]
+    assert no_network_raft_leader_with_log.next_index == [5, 2, 5]

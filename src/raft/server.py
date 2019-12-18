@@ -14,6 +14,10 @@ from raft.network import SockBackend
 from raft.state_machine import State
 
 
+class LogAlreadyUpToDateException(Exception):
+    pass
+
+
 class RaftServer:
     def __init__(self, server_no, num_servers, net, state_machine):
         self.server_no = server_no
@@ -36,7 +40,7 @@ class RaftServer:
         self.match_index = None
 
     def on_transition_leader(self):
-        self.next_index = [len(self.log) for _ in range(self.num_servers)]
+        self.next_index = [len(self.log) - 1 for _ in range(self.num_servers)]
         self.match_index = [0 for _ in range(self.num_servers)]
 
     def recv(self):
@@ -44,7 +48,7 @@ class RaftServer:
 
     def send(self, server_no, msg):
         self._net.send(
-            server_no, Message(server_no=self.server_no, term=self.term, message=msg)
+            server_no, Message(server_no=self.server_no, term=self.term, content=msg)
         )
 
     def handle_message(self, message: Message):
@@ -76,7 +80,7 @@ class RaftServer:
     def send_append_entries(self, server_no):
         log_index = self.next_index[server_no]
         if log_index == len(self.log):
-            return None
+            raise LogAlreadyUpToDateException(f'server {server_no} already has all log entries {log_index}/{log_index}')
 
         return AppendEntries(
             log_index=log_index,
