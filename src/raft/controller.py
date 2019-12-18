@@ -16,20 +16,35 @@ class RaftController:
 
         self.server_no = server_no
 
-
     def start(self):
-        self._logger.info(f'starting network thread')
+        self._logger.info("starting network thread")
         self._net.start()
-        self._logger.info(f'starting event loop')
-        threading.Thread(target=self._event_loop, daemon=True).start()
-        self._logger.info(f'starting message receiver')
-        threading.Thread(target=self._message_receiver, daemon=True).start()
-        self._logger.info(f'starting heartbeat')
-        threading.Thread(target=self._heartbeat_timer, daemon=True).start()
-        self._logger.info(f'starting election timeout')
-        threading.Thread(target=self._election_timer, daemon=True).start()
+        self._logger.info("starting event loop")
+        threading.Thread(
+            target=self._event_loop,
+            daemon=True,
+            name=f"RaftController-{self.server_no}-event-loop",
+        ).start()
+        self._logger.info(f"starting message receiver")
+        threading.Thread(
+            target=self._message_loop,
+            daemon=True,
+            name=f"RaftController-{self.server_no}-message-loop",
+        ).start()
+        self._logger.info("starting heartbeat")
+        threading.Thread(
+            target=self._heartbeat_timer,
+            daemon=True,
+            name=f"RaftController-{self.server_no}-heartbeat",
+        ).start()
+        self._logger.info("starting election timeout")
+        threading.Thread(
+            target=self._election_timer,
+            daemon=True,
+            name=f"RaftController-{self.server_no}-election-timeout",
+        ).start()
 
-    def _message_receiver(self):
+    def _message_loop(self):
         while True:
             msg = self._net.recv()
             self._events.put(("message", msg))
