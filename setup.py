@@ -2,7 +2,7 @@ import os
 
 from setuptools import setup, find_packages
 
-base_packages = ["click==7.0"]
+base_packages = ["click==7.0", 'pytest']
 
 
 setup(
