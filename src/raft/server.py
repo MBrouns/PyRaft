@@ -7,7 +7,7 @@ from raft.messaging import (
     AppendEntriesFailed,
     AppendEntriesSucceeded,
     InvalidTerm,
-)
+    RequestVote, VoteGranted, VoteDenied)
 from raft.state_machine import State
 
 
@@ -38,11 +38,21 @@ class RaftServer:
         self.next_index = [max(0, len(self.log) - 1) for _ in range(self.num_servers)]
         self.match_index = [0 for _ in range(self.num_servers)]
 
+    def become_follower(self):
+        self.state = State.FOLLOWER
+
+    def handle_election_timeout(self):
+        pass
+
     def handle_message(self, message: Message):
         message_handlers = {
             AppendEntries: self.handle_append_entries,
             AppendEntriesSucceeded: self.handle_append_entries_succeeded,
             AppendEntriesFailed: self.handle_append_entries_failed,
+            RequestVote: self.handle_request_vote,
+            VoteGranted: self.handle_vote_granted,
+            VoteDenied: self.handle_vote_denied,
+
         }
         self._logger.info(
             f"Received {type(message.content)} message from server {message.sender}"
