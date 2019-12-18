@@ -2,7 +2,7 @@ def test_handle_append_entries_failed_not_leader(no_network_raft_follower):
     resp = no_network_raft_follower.handle_append_entries_succeeded(
         other_server_no=1, replicated_index=1
     )
-    assert resp == False
+    assert resp is None
 
 
 def test_handle_append_entries_succeeded(no_network_raft_leader_with_log):

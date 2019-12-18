@@ -22,21 +22,12 @@ def setup_logger(verbose, log_file_path):
 
     logging.basicConfig(level=log_level, handlers=[c_handler, f_handler])
 
+
 @click.group()
 @click.option('-v', '--verbose', is_flag=True)
 @click.option('-l', '--log-file-path', default='raft.log')
 def main(verbose, log_file_path):
     setup_logger(verbose, log_file_path)
-
-
-class MockLeader:
-    def __init__(self):
-        self.state = State.LEADER
-
-
-class MockFollower:
-    def __init__(self):
-        self.state = State.FOLLOWER
 
 
 @main.command()
@@ -67,7 +58,7 @@ if __name__ == "__main__":
         r3.start()
         r4.start()
 
-    def create_entries():
-        r0._machine.log.append(0, 0, LogEntry(0, 'hello world'))
-        r0._machine.log.append(1, 0, LogEntry(0, 'hello world'))
+    def add_entry(controller):
+        controller._machine.log.append(len(controller._machine.log), 0, LogEntry(0, 'hello world'))
+        # r0._machine.log.append(1, 0, LogEntry(0, 'hello world'))
 

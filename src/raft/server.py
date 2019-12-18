@@ -47,17 +47,17 @@ class RaftServer:
         self._logger.info(
             f"Received {type(message.content)} message from server {message.sender}"
         )
-        # TODO: write test
+
         if message.term < self.term:
             self._logger.info(f"Server {message.sender} has a lower term, ignoring")
             return InvalidTerm()
-        # TODO: write test
+
         if message.term > self.term:
             self._logger.info(
                 f"Server {message.sender} has an higher term, updating mine and "
                 f"converting to follower"
             )
-            # TODO: convert to follower
+            self.become_follower()
             self.term = message.term
 
         try:
@@ -116,8 +116,7 @@ class RaftServer:
         """
         if not self.state != State.FOLLOWER:
             self._logger.info(f"received append entries call while current state ")
-            # TODO: demote to follower
-            pass
+            self.become_follower()
 
         self.leader_id = leader_id
         try:
@@ -145,7 +144,7 @@ class RaftServer:
                 f"Received an AppendEntriesSucceeded message from {other_server_no}"
                 f"but current state is not leader. Ignoring the message"
             )
-            return False
+            return None
 
         self.match_index[other_server_no] = replicated_index
         self.next_index[other_server_no] = replicated_index + 1
@@ -156,7 +155,7 @@ class RaftServer:
                 f"Received an AppendEntriesFailed message from {other_server_no}"
                 f"but current state is not leader. Ignoring the message"
             )
-            return False
+            return None
 
         new_try_log_index = self.next_index[other_server_no] - 1
 

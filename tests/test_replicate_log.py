@@ -1,6 +1,5 @@
 from raft.log import LogEntry
 from raft.messaging import Message
-from raft.server import LogAlreadyUpToDateException
 
 
 def replicate(leader, follower):

@@ -6,7 +6,7 @@ def test_handle_append_entries_failed_not_leader(no_network_raft_follower):
     resp = no_network_raft_follower.handle_append_entries_failed(
         1, LogNotCaughtUpError()
     )
-    assert resp == False
+    assert resp is None
 
 
 def test_handle_append_entries_failed(no_network_raft_leader_with_log):
