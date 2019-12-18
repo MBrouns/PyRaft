@@ -26,12 +26,12 @@ InvalidTerm = NamedTuple("InvalidTerm")
 class Message:
     ALLOWED_MESSAGES = (AppendEntries, AppendEntriesSucceeded, AppendEntriesFailed, InvalidTerm)
 
-    def __init__(self, server_no, term, content):
+    def __init__(self, sender, term, content):
         if not isinstance(content, self.ALLOWED_MESSAGES):
             raise ValueError(
                 f"expected message to be in {self.ALLOWED_MESSAGES}, got {type(content)}"
             )
-        self.server_no = server_no
+        self.sender = sender
         self.term = term
         self.content = content
 

@@ -1,5 +1,6 @@
 import pytest
 from raft import config
+from raft.controller import RaftController
 from raft.log import Log, LogEntry
 from raft.network import SockBackend
 from raft.server import RaftServer
@@ -20,34 +21,30 @@ class MockBackend:
         pass
 
 
-class MockLeader:
-    def __init__(self):
-        self.state = State.LEADER
+@pytest.fixture
+def raft_controller():
+    return RaftController(
 
-
-class MockFollower:
-    def __init__(self):
-        self.state = State.FOLLOWER
-
+    )
 
 @pytest.fixture
 def no_network_raft_follower():
     return RaftServer(
         server_no=1,
         num_servers=3,
-        net=MockBackend(0, config.SERVERS),
-        state_machine=MockFollower(),
+        # net=MockBackend(0, config.SERVERS),
     )
 
 
 @pytest.fixture
 def no_network_raft_leader():
-    return RaftServer(
+    server = RaftServer(
         server_no=0,
         num_servers=3,
-        net=MockBackend(0, config.SERVERS),
-        state_machine=MockLeader(),
+        # net=MockBackend(0, config.SERVERS),
     )
+    server.become_leader()
+    return server
 
 
 @pytest.fixture
@@ -73,5 +70,5 @@ def filled_log():
 @pytest.fixture
 def no_network_raft_leader_with_log(no_network_raft_leader, filled_log):
     no_network_raft_leader.log = filled_log
-    no_network_raft_leader.on_transition_leader()
+    no_network_raft_leader.become_leader()
     return no_network_raft_leader

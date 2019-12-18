@@ -1,8 +1,6 @@
 import logging
-import time
 
-from raft import config
-from raft.log import Log, LogEntry, LogNotCaughtUpError, LogDifferentTermError
+from raft.log import Log, LogNotCaughtUpError, LogDifferentTermError
 from raft.messaging import (
     Message,
     AppendEntries,
@@ -10,16 +8,11 @@ from raft.messaging import (
     AppendEntriesSucceeded,
     InvalidTerm,
 )
-from raft.network import SockBackend
 from raft.state_machine import State
 
 
-class LogAlreadyUpToDateException(Exception):
-    pass
-
-
 class RaftServer:
-    def __init__(self, server_no, num_servers, net, state_machine):
+    def __init__(self, server_no, num_servers):
         self.server_no = server_no
         self._logger = logging.getLogger(f"RaftServer-{server_no}")
         self.num_servers = num_servers
@@ -30,26 +23,20 @@ class RaftServer:
 
         self.log = Log()  # todo: put a lock around it
 
-        self.state_machine = state_machine
-
-        self._net = net
-        self._net.run_server()
+        self.state = State.FOLLOWER
 
         # volatile leader state
         self.next_index = None
         self.match_index = None
 
-    def on_transition_leader(self):
-        self.next_index = [len(self.log) - 1 for _ in range(self.num_servers)]
-        self.match_index = [0 for _ in range(self.num_servers)]
-
-    def recv(self):
-        return self._net.recv()
-
-    def send(self, server_no, msg):
-        self._net.send(
-            server_no, Message(server_no=self.server_no, term=self.term, content=msg)
+    def become_leader(self):
+        self._logger.info(
+            f"Transitioned to leader, setting next_index to {max(len(self.log) - 1, 0)}"
         )
+        self.state = State.LEADER
+
+        self.next_index = [max(0, len(self.log) - 1) for _ in range(self.num_servers)]
+        self.match_index = [0 for _ in range(self.num_servers)]
 
     def handle_message(self, message: Message):
         message_handlers = {
@@ -57,11 +44,19 @@ class RaftServer:
             AppendEntriesSucceeded: self.handle_append_entries_succeeded,
             AppendEntriesFailed: self.handle_append_entries_failed,
         }
+        self._logger.info(
+            f"Received {type(message.content)} message from server {message.sender}"
+        )
         # TODO: write test
         if message.term < self.term:
+            self._logger.info(f"Server {message.sender} has a lower term, ignoring")
             return InvalidTerm()
         # TODO: write test
         if message.term > self.term:
+            self._logger.info(
+                f"Server {message.sender} has an higher term, updating mine and "
+                f"converting to follower"
+            )
             # TODO: convert to follower
             self.term = message.term
 
@@ -72,15 +67,24 @@ class RaftServer:
                 f"unknown message. expected {message_handlers.keys()}, got {type(message)}"
             )
 
-        return handler(message.server_no, **message.content._asdict())
+        response = handler(message.sender, **message.content._asdict())
+        return message.sender, response
 
-        # TODO: where to do sending?
-        # self.send(message.server_no, ret_val)
+    def _send_append_entries(self, server_no):
+        if not self.state == State.LEADER:
+            return None
 
-    def send_append_entries(self, server_no):
         log_index = self.next_index[server_no]
+
         if log_index == len(self.log):
-            raise LogAlreadyUpToDateException(f'server {server_no} already has all log entries {log_index}/{log_index}')
+            self._logger.info(
+                f"{server_no} already has all log entries {log_index}/{log_index}"
+            )
+            return None
+
+        self._logger.info(
+            f"sending AppendEntries RPC to {server_no} for index {log_index}/{len(self.log)}"
+        )
 
         return AppendEntries(
             log_index=log_index,
@@ -88,6 +92,13 @@ class RaftServer:
             entry=self.log[log_index],
             leader_commit=self.commit_index,
         )
+
+    def handle_heartbeat(self):
+        for server_no in range(self.num_servers):
+            if server_no != self.server_no:
+                resp = self._send_append_entries(server_no)
+                if resp is not None:
+                    yield server_no, resp
 
     def handle_append_entries(
         self, leader_id, log_index, prev_log_term, entry, leader_commit
@@ -103,16 +114,15 @@ class RaftServer:
         Returns:
 
         """
-        if not self.state_machine.state != State.FOLLOWER:
+        if not self.state != State.FOLLOWER:
+            self._logger.info(f"received append entries call while current state ")
             # TODO: demote to follower
             pass
 
         self.leader_id = leader_id
         try:
             self.log.append(
-                log_index=log_index,
-                prev_log_term=prev_log_term,
-                entry=entry,
+                log_index=log_index, prev_log_term=prev_log_term, entry=entry
             )
         except (LogNotCaughtUpError, LogDifferentTermError) as e:
             return AppendEntriesFailed(reason=e)
@@ -130,7 +140,7 @@ class RaftServer:
         return AppendEntriesSucceeded(log_index)
 
     def handle_append_entries_succeeded(self, other_server_no, replicated_index):
-        if self.state_machine.state != State.LEADER:
+        if self.state != State.LEADER:
             self._logger.info(
                 f"Received an AppendEntriesSucceeded message from {other_server_no}"
                 f"but current state is not leader. Ignoring the message"
@@ -141,7 +151,7 @@ class RaftServer:
         self.next_index[other_server_no] = replicated_index + 1
 
     def handle_append_entries_failed(self, other_server_no, reason):
-        if self.state_machine.state != State.LEADER:
+        if self.state != State.LEADER:
             self._logger.info(
                 f"Received an AppendEntriesFailed message from {other_server_no}"
                 f"but current state is not leader. Ignoring the message"
@@ -156,18 +166,4 @@ class RaftServer:
         )
 
         self.next_index[other_server_no] = new_try_log_index
-        return self.send_append_entries(server_no=other_server_no)
-
-
-if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(relativeCreated)6d %(threadName)s  - %(name)s - %(levelname)s - %(message)s",
-    )
-    h0 = RaftServer(0, SockBackend(0, config.SERVERS))
-    h1 = RaftServer(1, SockBackend(1, config.SERVERS))
-
-    time.sleep(1)
-    h0.send(1, "hello world")
-    h0.send(1, "another world")
-    print(h1.recv())
+        return self._send_append_entries(server_no=other_server_no)

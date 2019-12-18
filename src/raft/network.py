@@ -3,7 +3,7 @@ import threading
 from socket import *
 import logging
 
-from src.raft.messaging import recv_message, send_message, Message
+from raft.messaging import recv_message, send_message, Message
 
 
 class SockBackend:
@@ -15,7 +15,7 @@ class SockBackend:
         self._server_config = server_config
         self._connections = [None for _ in range(len(server_config))]
 
-    def run_server(self):
+    def start(self):
         threading.Thread(
             target=self._accept_clients,
             daemon=True,
@@ -71,6 +71,6 @@ class SockBackend:
             raw_msg = recv_message(client)
             msg = Message.from_bytes(raw_msg)
             self._logger.info(
-                f"received message of {len(raw_msg)} bytes from server {msg.server_no}"
+                f"received message of {len(raw_msg)} bytes from server {msg.sender}"
             )
             self.inbox.put(msg)

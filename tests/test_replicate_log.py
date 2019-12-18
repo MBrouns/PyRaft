@@ -7,26 +7,25 @@ def replicate(leader, follower):
     """Mocks the messages transferring between leaders and followers to do a full cycle of log replication"""
 
     leader_response_msg = Message(
-        server_no=leader.server_no,
+        sender=leader.server_no,
         term=leader.term,
-        content=leader.send_append_entries(follower.server_no),
+        content=leader._send_append_entries(follower.server_no),
     )
 
     while leader_response_msg is not None:
         follower_reply = Message(
-            server_no=follower.server_no,
+            sender=follower.server_no,
             term=follower.term,
-            content=follower.handle_message(leader_response_msg),
+            content=follower.handle_message(leader_response_msg)[1],
         )
-        leader_response = leader.handle_message(follower_reply)
+        leader_response = leader.handle_message(follower_reply)[1]
         if leader_response is None:
-            try:
-                leader_response = leader.send_append_entries(follower.server_no)
-            except LogAlreadyUpToDateException:
+            leader_response = leader._send_append_entries(follower.server_no)
+            if leader_response is None:  # already replicated
                 break
 
         leader_response_msg = Message(
-            server_no=leader.server_no, term=leader.term, content=leader_response
+            sender=leader.server_no, term=leader.term, content=leader_response
         )
 
 
