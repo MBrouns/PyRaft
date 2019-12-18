@@ -7,7 +7,10 @@ from raft.messaging import (
     AppendEntriesFailed,
     AppendEntriesSucceeded,
     InvalidTerm,
-    RequestVote, VoteGranted, VoteDenied)
+    RequestVote,
+    VoteGranted,
+    VoteDenied,
+)
 from raft.state_machine import State
 
 
@@ -17,8 +20,9 @@ class RaftServer:
         self._logger = logging.getLogger(f"RaftServer-{server_no}")
         self.num_servers = num_servers
 
-        self.term = 0
+        self._term = 0
         self.commit_index = 0
+        self.voted_for = None
         self.leader_id = None
 
         self.log = Log()  # todo: put a lock around it
@@ -28,6 +32,15 @@ class RaftServer:
         # volatile leader state
         self.next_index = None
         self.match_index = None
+
+    @property
+    def term(self):
+        return self._term
+
+    @term.setter
+    def term(self, value):
+        self.voted_for = None
+        self._term = value
 
     def become_leader(self):
         self._logger.info(
@@ -50,9 +63,8 @@ class RaftServer:
             AppendEntriesSucceeded: self.handle_append_entries_succeeded,
             AppendEntriesFailed: self.handle_append_entries_failed,
             RequestVote: self.handle_request_vote,
-            VoteGranted: self.handle_vote_granted,
-            VoteDenied: self.handle_vote_denied,
-
+            # VoteGranted: self.handle_vote_granted,
+            # VoteDenied: self.handle_vote_denied,
         }
         self._logger.info(
             f"Received {type(message.content)} message from server {message.sender}"
@@ -80,9 +92,30 @@ class RaftServer:
         response = handler(message.sender, **message.content._asdict())
         return message.sender, response
 
+    def handle_request_vote(self, term, candidate_id, candidate_log_len, last_log_term):
+        if term < self.term:
+            return VoteDenied(
+                f"Vote came from server on term {term} while own term was {self.term}"
+            )
+
+        if not (self.voted_for is None or self.voted_for == candidate_id):
+            return VoteDenied(f"already voted for other candidate: {self.voted_for}")
+
+        if candidate_log_len < len(self.log):
+            return VoteDenied(
+                f"candidate log was size {candidate_log_len} while own log length was {len(self.log)}"
+            )
+
+        if last_log_term < self.log.last_term:
+            return VoteDenied(
+                f"candidate log was on term {last_log_term} while own log length was {self.log.last_term}"
+            )
+
+        return VoteGranted()
+
     def _send_append_entries(self, server_no):
         if not self.state == State.LEADER:
-            return None
+            return
 
         log_index = self.next_index[server_no]
 
@@ -90,7 +123,7 @@ class RaftServer:
             self._logger.info(
                 f"{server_no} already has all log entries {log_index}/{log_index}"
             )
-            return None
+            return
 
         self._logger.info(
             f"sending AppendEntries RPC to {server_no} for index {log_index}/{len(self.log)}"
@@ -154,7 +187,7 @@ class RaftServer:
                 f"Received an AppendEntriesSucceeded message from {other_server_no}"
                 f"but current state is not leader. Ignoring the message"
             )
-            return None
+            return
 
         self.match_index[other_server_no] = replicated_index
         self.next_index[other_server_no] = replicated_index + 1
@@ -165,7 +198,7 @@ class RaftServer:
                 f"Received an AppendEntriesFailed message from {other_server_no}"
                 f"but current state is not leader. Ignoring the message"
             )
-            return None
+            return
 
         new_try_log_index = self.next_index[other_server_no] - 1
 

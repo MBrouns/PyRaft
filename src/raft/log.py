@@ -43,6 +43,13 @@ class Log:
         else:
             self._log.append(entry)
 
+    @property
+    def last_term(self):
+        try:
+            return self[-1].term
+        except IndexError:
+            return 0
+
     def __getitem__(self, item):
         return self._log[item]
 

@@ -18,10 +18,10 @@ AppendEntriesSucceeded = NamedTuple("AppendEntriesSucceeded", replicated_index=i
 AppendEntriesFailed = NamedTuple("AppendEntriesFailed", reason=Exception)
 InvalidTerm = NamedTuple("InvalidTerm")
 RequestVote = NamedTuple(
-    "RequestVote", candidate_id=int, last_log_index=int, last_log_term=int
+    "RequestVote", term=int, candidate_id=int, candidate_log_len=int, last_log_term=int
 )
 VoteGranted = NamedTuple("VoteGranted")
-VoteDenied = NamedTuple("VoteDenied", reason=Exception)
+VoteDenied = NamedTuple("VoteDenied", reason=str)
 
 
 class Message:
