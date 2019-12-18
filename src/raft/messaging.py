@@ -1,6 +1,4 @@
 import pickle
-import sys
-from socket import *
 import logging
 from typing import NamedTuple
 
@@ -20,7 +18,7 @@ AppendEntries = NamedTuple(
     entry=str,
     leader_commit=int,
 )
-AppendEntriesSucceeded = NamedTuple("AppendEntriesSucceeded")
+AppendEntriesSucceeded = NamedTuple("AppendEntriesSucceeded", index=int)
 AppendEntriesFailed = NamedTuple("AppendEntriesFailed", reason=Exception)
 InvalidTerm = NamedTuple("InvalidTerm")
 
