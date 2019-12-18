@@ -1,0 +1,1 @@
+STATES = ['leader', 'follower', 'candidate']
