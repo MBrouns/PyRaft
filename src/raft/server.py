@@ -73,6 +73,18 @@ class RaftServer:
         # TODO: where to do sending?
         # self.send(message.server_no, ret_val)
 
+    def send_append_entries(self, server_no):
+        log_index = self.next_index[server_no]
+        if log_index == len(self.log):
+            return None
+
+        return AppendEntries(
+            log_index=log_index,
+            prev_log_term=self.log[log_index - 1].term,
+            entry=self.log[log_index],
+            leader_commit=self.commit_index,
+        )
+
     def handle_append_entries(
         self, leader_id, log_index, prev_log_term, entry, leader_commit
     ):
@@ -96,7 +108,7 @@ class RaftServer:
             self.log.append(
                 log_index=log_index,
                 prev_log_term=prev_log_term,
-                entry=LogEntry(self.term, entry),
+                entry=entry,
             )
         except (LogNotCaughtUpError, LogDifferentTermError) as e:
             return AppendEntriesFailed(reason=e)
@@ -115,8 +127,10 @@ class RaftServer:
 
     def handle_append_entries_succeeded(self, other_server_no, replicated_index):
         if self.state_machine.state != State.LEADER:
-            self._logger.info(f'Received an AppendEntriesSucceeded message from {other_server_no}'
-                              f'but current state is not leader. Ignoring the message')
+            self._logger.info(
+                f"Received an AppendEntriesSucceeded message from {other_server_no}"
+                f"but current state is not leader. Ignoring the message"
+            )
             return False
 
         self.match_index[other_server_no] = replicated_index
@@ -124,22 +138,21 @@ class RaftServer:
 
     def handle_append_entries_failed(self, other_server_no, reason):
         if self.state_machine.state != State.LEADER:
-            self._logger.info(f'Received an AppendEntriesFailed message from {other_server_no}'
-                              f'but current state is not leader. Ignoring the message')
+            self._logger.info(
+                f"Received an AppendEntriesFailed message from {other_server_no}"
+                f"but current state is not leader. Ignoring the message"
+            )
             return False
 
         new_try_log_index = self.next_index[other_server_no] - 1
 
-        self._logger.info(f'Received an AppendEntriesFailed message from {other_server_no}. Reason was: {reason}'
-                          f'retrying with log index {new_try_log_index}')
+        self._logger.info(
+            f"Received an AppendEntriesFailed message from {other_server_no}. Reason was: {reason}"
+            f"retrying with log index {new_try_log_index}"
+        )
 
         self.next_index[other_server_no] = new_try_log_index
-        return AppendEntries(
-            log_index=new_try_log_index,
-            prev_log_term=self.log[new_try_log_index - 1].term,
-            entry=self.log[new_try_log_index],
-            leader_commit=self.commit_index
-        )
+        return self.send_append_entries(server_no=other_server_no)
 
 
 if __name__ == "__main__":

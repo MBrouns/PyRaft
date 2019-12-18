@@ -18,7 +18,7 @@ AppendEntries = NamedTuple(
     entry=str,
     leader_commit=int,
 )
-AppendEntriesSucceeded = NamedTuple("AppendEntriesSucceeded", index=int)
+AppendEntriesSucceeded = NamedTuple("AppendEntriesSucceeded", replicated_index=int)
 AppendEntriesFailed = NamedTuple("AppendEntriesFailed", reason=Exception)
 InvalidTerm = NamedTuple("InvalidTerm")
 

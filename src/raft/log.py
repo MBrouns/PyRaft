@@ -25,7 +25,7 @@ class Log:
             )
         if log_index != 0 and self[log_index - 1].term != prev_log_term:
             raise LogDifferentTermError(
-                f"Tried to assign to log where previous entries term was {self[log_index - 1].term}"
+                f"Tried to assign to log where previous entries term was {self[log_index - 1].term} "
                 f"but prev_log_term was {prev_log_term}"
             )
 

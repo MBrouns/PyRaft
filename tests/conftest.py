@@ -33,7 +33,7 @@ class MockFollower:
 @pytest.fixture
 def no_network_raft_follower():
     return RaftServer(
-        server_no=0,
+        server_no=1,
         num_servers=3,
         net=MockBackend(0, config.SERVERS),
         state_machine=MockFollower(),
@@ -51,17 +51,20 @@ def no_network_raft_leader():
 
 
 @pytest.fixture
+def log_entry():
+    return LogEntry(term=0, msg=0)
+
+
+@pytest.fixture
 def filled_log():
     log = Log()
-    term_0_entry = LogEntry(term=0, msg=42)
-    term_1_entry = LogEntry(term=1, msg=42)
 
-    log.append(log_index=0, prev_log_term=0, entry=term_0_entry)
-    log.append(log_index=1, prev_log_term=0, entry=term_0_entry)
-    log.append(log_index=2, prev_log_term=0, entry=term_0_entry)
-    log.append(log_index=3, prev_log_term=0, entry=term_1_entry)
-    log.append(log_index=4, prev_log_term=1, entry=term_1_entry)
-    log.append(log_index=5, prev_log_term=1, entry=term_1_entry)
+    log.append(log_index=0, prev_log_term=0, entry=LogEntry(term=0, msg=0))
+    log.append(log_index=1, prev_log_term=0, entry=LogEntry(term=0, msg=1))
+    log.append(log_index=2, prev_log_term=0, entry=LogEntry(term=0, msg=2))
+    log.append(log_index=3, prev_log_term=0, entry=LogEntry(term=1, msg=3))
+    log.append(log_index=4, prev_log_term=1, entry=LogEntry(term=1, msg=4))
+    log.append(log_index=5, prev_log_term=1, entry=LogEntry(term=1, msg=5))
 
     assert len(log) == 6
     return log
