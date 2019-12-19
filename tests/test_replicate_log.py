@@ -2,6 +2,7 @@ import queue
 
 from raft.log import LogEntry
 from raft.messaging import Message
+from raft.server import RaftServer
 
 
 def replicate(leader, follower):
@@ -31,11 +32,66 @@ def replicate(leader, follower):
 
 def logs_same(log1, log2):
     if len(log1) != len(log2):
-        return False
+        raise ValueError(f"logs different length: {len(log1)} - {len(log2)}")
     for i in range(len(log2)):
         if log1[i] != log2[i]:
-            return False
+            raise ValueError(f'logs different in ind ex {i}')
     return True
+
+
+def test_figure_8_():
+    r0 = RaftServer(server_no=0, num_servers=5)
+    r1 = RaftServer(server_no=1, num_servers=5)
+    r2 = RaftServer(server_no=2, num_servers=5)
+    r3 = RaftServer(server_no=3, num_servers=5)
+    r4 = RaftServer(server_no=4, num_servers=5)
+
+    # State a:
+    r0.term = 1
+    r1.term = 1
+    r2.term = 1
+    r3.term = 1
+    r4.term = 1
+    r0.become_leader()
+    r0.log.append(log_index=0, prev_log_term=0, entry=LogEntry(r0.term, '1'))
+    replicate(r0, r1)
+    replicate(r0, r2)
+    replicate(r0, r3)
+    replicate(r0, r4)
+
+    r0.term = 2
+    r1.term = 2
+    r0.log.append(log_index=1, prev_log_term=1, entry=LogEntry(r0.term, '2'))
+    replicate(r0, r1)
+    assert logs_same(r0.log, r1.log)
+
+    # State b:
+    r0.become_follower()
+    r4.term = 3
+    r4.become_leader()
+    r4.log.append(log_index=1, prev_log_term=1, entry=LogEntry(r4.term, '3'))
+
+    # state c:
+    r4.become_follower()
+    r0.become_leader()
+    r0.term = 4
+    replicate(r0, r2)
+    assert logs_same(r0.log, r2.log)
+    r0.log.append(log_index=2, prev_log_term=2, entry=LogEntry(r0.term, '4'))
+
+    # state d:
+    r0.become_follower()
+    r4.become_leader()
+    r4.term = 5
+
+    replicate(r4, r0)
+    replicate(r4, r1)
+    replicate(r4, r2)
+    replicate(r4, r3)
+    assert logs_same(r4.log, r1.log)
+    assert logs_same(r4.log, r2.log)
+    assert logs_same(r4.log, r3.log)
+    assert len(r4.log) == 2
 
 
 def test_replicate_to_empty_log(
