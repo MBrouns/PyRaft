@@ -58,7 +58,7 @@ class SockBackend:
         )
         while True:
             client, addr = sock.accept()
-            self._logger.info(f"client connection received from server at {addr}")
+            self._logger.debug(f"client connection received from server at {addr}")
             t = threading.Thread(
                 target=self._handle_client,
                 args=(client,),

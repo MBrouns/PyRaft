@@ -1,4 +1,6 @@
 import logging
+import time
+
 import click
 from raft import config
 from raft.controller import RaftController
@@ -61,4 +63,28 @@ if __name__ == "__main__":
     def add_entry(controller):
         controller._machine.log.append(len(controller._machine.log), 0, LogEntry(0, 'hello world'))
         # r0._machine.log.append(1, 0, LogEntry(0, 'hello world'))
+
+    def logs_same(log1, log2):
+        if len(log1) != len(log2):
+            raise ValueError(f"logs different length: {len(log1)} - {len(log2)}")
+        for i in range(len(log2)):
+            if log1[i] != log2[i]:
+                raise ValueError(f'logs different in ind ex {i}')
+        return True
+
+    def all_logs_same():
+        assert logs_same(r0._machine.log, r1._machine.log)
+        assert logs_same(r0._machine.log, r2._machine.log)
+        assert logs_same(r0._machine.log, r3._machine.log)
+        assert logs_same(r0._machine.log, r4._machine.log)
+
+    start()
+    time.sleep(1)
+    add_entry(r0)
+    add_entry(r0)
+
+    time.sleep(1)
+    # r0._machine.become_candidate()
+
+    # time.sleep(10)
 
