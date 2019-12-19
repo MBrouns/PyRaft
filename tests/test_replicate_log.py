@@ -116,12 +116,14 @@ def test_figure_8(raft_cluster):
     r0.log.append(log_index=1, prev_log_term=1, entry=LogEntry(r0.term, "2"))
     replicate(r0, r1)
     assert logs_same(r0.log, r1.log)
+    assert r0.commit_index == 0
 
     # State b:
     r0.become_follower()
     r4.term = 3
     r4.become_leader()
     r4.log.append(log_index=1, prev_log_term=1, entry=LogEntry(r4.term, "3"))
+    assert r4.commit_index == 0
 
     # state c:
     r4.become_follower()
@@ -130,6 +132,7 @@ def test_figure_8(raft_cluster):
     replicate(r0, r2)
     assert logs_same(r0.log, r2.log)
     r0.log.append(log_index=2, prev_log_term=2, entry=LogEntry(r0.term, "4"))
+    assert r0.commit_index == 0
 
     # state d:
     r0.become_follower()
@@ -144,6 +147,19 @@ def test_figure_8(raft_cluster):
     assert logs_same(r4.log, r2.log)
     assert logs_same(r4.log, r3.log)
     assert len(r4.log) == 2
+    assert r4.commit_index == 0
+
+    # new state;
+    r4.log.append(log_index=2, prev_log_term=3, entry=LogEntry(r0.term, "4"))
+    replicate(r4, r0)
+    replicate(r4, r1)
+    replicate(r4, r2)
+    replicate(r4, r3)
+    assert logs_same(r4.log, r1.log)
+    assert logs_same(r4.log, r2.log)
+    assert logs_same(r4.log, r3.log)
+    assert len(r4.log) == 3
+    assert r4.commit_index == 2
 
 
 def test_replicate_to_empty_log(

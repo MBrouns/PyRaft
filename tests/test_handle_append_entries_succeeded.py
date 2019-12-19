@@ -8,9 +8,9 @@ def test_handle_append_entries_failed_not_leader(no_network_raft_follower):
 def test_handle_append_entries_succeeded(no_network_raft_leader_with_log):
     sender_server_no = 1
     resp = no_network_raft_leader_with_log._handle_append_entries_succeeded(
-        other_server_no=sender_server_no, replicated_index=1
+        other_server_no=sender_server_no, replicated_index=0
     )
     assert resp is None
 
-    assert no_network_raft_leader_with_log.match_index == [0, 1, 0]
-    assert no_network_raft_leader_with_log.next_index == [6, 2, 6]
+    assert no_network_raft_leader_with_log.match_index == [-1, 0, -1]
+    assert no_network_raft_leader_with_log.next_index == [6, 1, 6]

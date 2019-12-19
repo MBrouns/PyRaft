@@ -1,4 +1,5 @@
 import logging
+import math
 import queue
 from collections import Iterable
 from enum import Enum
@@ -55,7 +56,7 @@ class RaftServer:
         self.voted_for = None
         self.log = Log()
 
-        self._commit_index = 0
+        self._commit_index = -1
         self.last_applied = -1
         self.leader_id = None
         self.received_votes = set()
@@ -94,7 +95,7 @@ class RaftServer:
         self.state = State.LEADER
 
         self.next_index = [max(0, len(self.log)) for _ in range(self.num_servers)]
-        self.match_index = [0 for _ in range(self.num_servers)]
+        self.match_index = [-1 for _ in range(self.num_servers)]
 
     def become_follower(self):
         self.state = State.FOLLOWER
@@ -281,6 +282,19 @@ class RaftServer:
     def _handle_append_entries_succeeded(self, other_server_no, replicated_index):
         self.match_index[other_server_no] = replicated_index
         self.next_index[other_server_no] = replicated_index + 1
+        self._update_committed_entries()
+
+    def _update_committed_entries(self):
+        majority_match_n = sorted(self.match_index)[self.num_servers // 2]
+        possible_ns = range(self.commit_index, min(majority_match_n, len(self.log)) + 1)
+
+        n = None
+        for possible_n in possible_ns:
+            if self.log[possible_n].term == self.term:
+                n = possible_n
+
+        if n is not None:
+            self.commit_index = n
 
     @only(State.LEADER)
     def _handle_append_entries_failed(self, other_server_no, reason):
