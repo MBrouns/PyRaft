@@ -19,8 +19,8 @@ def test_handle_message_invalid_term(no_network_raft_follower):
 
 def test_handle_message_same_term(no_network_raft_follower):
     """AppendEntries receiver implementation bullet 1"""
-    with mock.patch.object(no_network_raft_follower, 'handle_append_entries_succeeded') as mocked_method:
-        with mock.patch.object(no_network_raft_follower, 'send') as _:
+    with mock.patch.object(no_network_raft_follower, '_handle_append_entries_succeeded') as mocked_method:
+        with mock.patch.object(no_network_raft_follower, '_send') as _:
             no_network_raft_follower.handle_message(
                 Message(sender=1, term=0, recipient=no_network_raft_follower.server_no, content=AppendEntriesSucceeded(1))
             )

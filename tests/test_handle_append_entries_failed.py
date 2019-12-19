@@ -3,7 +3,7 @@ from raft.messaging import AppendEntries
 
 
 def test_handle_append_entries_failed_not_leader(no_network_raft_follower):
-    resp = no_network_raft_follower.handle_append_entries_failed(
+    resp = no_network_raft_follower._handle_append_entries_failed(
         1, LogNotCaughtUpError()
     )
     assert resp is None
@@ -14,7 +14,7 @@ def test_handle_append_entries_failed(no_network_raft_leader_with_log):
     next_index_before = list(no_network_raft_leader_with_log.next_index)
 
     sender_server_no = 1
-    resp = no_network_raft_leader_with_log.handle_append_entries_failed(sender_server_no, LogNotCaughtUpError())
+    resp = no_network_raft_leader_with_log._handle_append_entries_failed(sender_server_no, LogNotCaughtUpError())
     assert resp == AppendEntries(
         log_index=next_index_before[sender_server_no] - 1,
         prev_log_term=no_network_raft_leader_with_log.log[next_index_before[sender_server_no] - 1].term,

@@ -93,7 +93,7 @@ class RaftServer:
             server for server in range(self.num_servers) if server != self.server_no
         ]
         for server_no in followers:
-            self.send(
+            self._send(
                 server_no,
                 RequestVote(
                     term=self.term,
@@ -106,7 +106,7 @@ class RaftServer:
     def handle_election_timeout(self):
         self.become_candidate()
 
-    def handle_vote_granted(self, voter_id):
+    def _handle_vote_granted(self, voter_id):
         if self.state != State.CANDIDATE:
             return
 
@@ -115,7 +115,7 @@ class RaftServer:
         if len(self.received_votes) > self.num_servers // 2:
             self.become_leader()
 
-    def send(self, to, content):
+    def _send(self, to, content):
         self.outbox.put(
             Message(
                 sender=self.server_no, term=self.term, recipient=to, content=content
@@ -124,12 +124,12 @@ class RaftServer:
 
     def handle_message(self, message: Message):
         message_handlers = {
-            AppendEntries: self.handle_append_entries,
-            AppendEntriesSucceeded: self.handle_append_entries_succeeded,
-            AppendEntriesFailed: self.handle_append_entries_failed,
-            RequestVote: self.handle_request_vote,
-            VoteGranted: self.handle_vote_granted,
-            VoteDenied: self.handle_vote_denied,
+            AppendEntries: self._handle_append_entries,
+            AppendEntriesSucceeded: self._handle_append_entries_succeeded,
+            AppendEntriesFailed: self._handle_append_entries_failed,
+            RequestVote: self._handle_request_vote,
+            VoteGranted: self._handle_vote_granted,
+            VoteDenied: self._handle_vote_denied,
             InvalidTerm: lambda *args, **kwargs: None,
         }
         self._logger.info(
@@ -138,7 +138,7 @@ class RaftServer:
 
         if message.term < self.term:
             self._logger.info(f"Server {message.sender} has a lower term, ignoring")
-            self.send(message.sender, InvalidTerm())
+            self._send(message.sender, InvalidTerm())
 
         if message.term > self.term:
             self._logger.info(
@@ -157,13 +157,13 @@ class RaftServer:
 
         response = handler(message.sender, **message.content._asdict())
         if response is not None:
-            self.send(message.sender, response)
+            self._send(message.sender, response)
 
     @only(State.CANDIDATE)
-    def handle_vote_denied(self, server_no, reason):
+    def _handle_vote_denied(self, server_no, reason):
         self._logger.info(f"did not get vote from server {server_no} because {reason}")
 
-    def handle_request_vote(self, candidate_id, term, candidate_log_len, last_log_term):
+    def _handle_request_vote(self, candidate_id, term, candidate_log_len, last_log_term):
         if term < self.term:
             return VoteDenied(
                 f"Vote came from server on term {term} while own term was {self.term}"
@@ -219,9 +219,9 @@ class RaftServer:
         for server_no in followers:
             append_entries_msg = self._append_entries_msg(server_no)
             if append_entries_msg:
-                self.send(server_no, self._append_entries_msg(server_no))
+                self._send(server_no, self._append_entries_msg(server_no))
 
-    def handle_append_entries(
+    def _handle_append_entries(
         self, leader_id, log_index, prev_log_term, entry, leader_commit
     ):
         """
@@ -261,12 +261,12 @@ class RaftServer:
         return AppendEntriesSucceeded(replicated_index)
 
     @only(State.LEADER)
-    def handle_append_entries_succeeded(self, other_server_no, replicated_index):
+    def _handle_append_entries_succeeded(self, other_server_no, replicated_index):
         self.match_index[other_server_no] = replicated_index
         self.next_index[other_server_no] = replicated_index + 1
 
     @only(State.LEADER)
-    def handle_append_entries_failed(self, other_server_no, reason):
+    def _handle_append_entries_failed(self, other_server_no, reason):
         new_try_log_index = self.next_index[other_server_no] - 1
 
         self._logger.info(

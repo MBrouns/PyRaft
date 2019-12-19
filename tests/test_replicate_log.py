@@ -28,7 +28,7 @@ def replicate(leader, follower):
             msg = leader._append_entries_msg(follower.server_no)
             if msg.entry is None:  # already replicated
                 break
-            leader.send(follower, msg)
+            leader._send(follower, msg)
             leader_response_msg = leader.outbox.get()
 
 

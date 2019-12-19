@@ -55,7 +55,7 @@ class RaftController:
         while True:
             state_machine_event = self._machine.outbox.get()
             if isinstance(state_machine_event, Message):
-                self._net.send(state_machine_event)
+                self._net._send(state_machine_event)
             elif state_machine_event == "reset_election_timeout":
                 with self.heartbeats_since_election_timeout_lock:
                     self.heartbeats_since_election_timeout = 0

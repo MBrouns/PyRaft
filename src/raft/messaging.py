@@ -63,7 +63,7 @@ def send_message(sock, msg):
     assert isinstance(msg, bytes)
     header = len(msg).to_bytes(HEADER_LENGTH, byteorder=HEADER_BYTEORDER)
     logger.debug(f"sending header")
-    sock.send(header)
+    sock._send(header)
     logger.debug(f"sending {len(msg)} bytes of data")
     sock.sendall(msg)
 
