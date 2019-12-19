@@ -81,7 +81,7 @@ class RaftServer:
             AppendEntriesFailed: self.handle_append_entries_failed,
             RequestVote: self.handle_request_vote,
             VoteGranted: self.handle_vote_granted,
-            # VoteDenied: self.handle_vote_denied,
+            VoteDenied: self.handle_vote_denied,
         }
         self._logger.info(
             f"Received {type(message.content)} message from server {message.sender}"
@@ -110,7 +110,10 @@ class RaftServer:
         if response is not None:
             self.send(message.sender, response)
 
-    def handle_request_vote(self, term, candidate_id, candidate_log_len, last_log_term):
+    def handle_vote_denied(self, server_no, reason):
+        self._logger.info(f"did not get vote from server {server_no} because {reason}")
+
+    def handle_request_vote(self, candidate_id, term, candidate_log_len, last_log_term):
         if term < self.term:
             return VoteDenied(
                 f"Vote came from server on term {term} while own term was {self.term}"
