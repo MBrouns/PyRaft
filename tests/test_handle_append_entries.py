@@ -26,6 +26,7 @@ def test_append_entries_split_brain(no_network_raft_follower, log_entry):
         leader_id=0, log_index=0, prev_log_term=0, entry=log_entry, leader_commit=0
     )
     assert isinstance(result, AppendEntriesSucceeded)
+    assert result.replicated_index == 0
 
     result = no_network_raft_follower.handle_append_entries(
         leader_id=0, log_index=1, prev_log_term=1, entry=log_entry, leader_commit=0
@@ -39,6 +40,18 @@ def test_append_entries_normal(no_network_raft_follower, log_entry):
         leader_id=0, log_index=0, prev_log_term=0, entry=log_entry, leader_commit=0
     )
     assert isinstance(result, AppendEntriesSucceeded)
+
+
+
+def test_append_entries_None(no_network_raft_follower, log_entry):
+    result = no_network_raft_follower.handle_append_entries(
+        leader_id=0, log_index=0, prev_log_term=0, entry=log_entry, leader_commit=0
+    )
+    result = no_network_raft_follower.handle_append_entries(
+        leader_id=0, log_index=1, prev_log_term=0, entry=None, leader_commit=0
+    )
+    assert isinstance(result, AppendEntriesSucceeded)
+    assert result.replicated_index == 0
 
 
 def test_append_entries_sets_commit_index(no_network_raft_follower, log_entry):

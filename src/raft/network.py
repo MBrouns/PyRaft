@@ -33,11 +33,11 @@ class SockBackend:
         s = self._connections[recipient]
         try:
             send_message(s, bytes(msg))
-            self._logger.info(
+            self._logger.debug(
                 f"sending a message to {recipient} using a cached connection"
             )
         except (AttributeError, ConnectionRefusedError):
-            self._logger.info(
+            self._logger.debug(
                 f"no cached connection for server {recipient}, connecting to {self._server_config[recipient]}"
             )
             s = socket(AF_INET, SOCK_STREAM)
@@ -52,7 +52,7 @@ class SockBackend:
         sock = socket(AF_INET, SOCK_STREAM)
         sock.setsockopt(SOL_SOCKET, SO_REUSEADDR, True)
         sock.bind((self.host, self.port))
-        sock.listen(1)
+        sock.listen(len(self._server_config))
         self._logger.info(
             f"Server {self._server_no} running at {self.host}:{self.port}"
         )
@@ -71,7 +71,7 @@ class SockBackend:
         while True:
             raw_msg = recv_message(client)
             msg = Message.from_bytes(raw_msg)
-            self._logger.info(
+            self._logger.debug(
                 f"received message of {len(raw_msg)} bytes from server {msg.sender}"
             )
             self.inbox.put(msg)

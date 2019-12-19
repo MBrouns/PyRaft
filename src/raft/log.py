@@ -27,7 +27,7 @@ class Log:
                 f"but prev_log_term was {prev_log_term}"
             )
         if entry is None:
-            return
+            return log_index - 1
         if not isinstance(entry, LogEntry):
             raise ValueError(f"expected a LogEntry instance, got {type(entry)} instead")
 
@@ -44,6 +44,7 @@ class Log:
             self._log[log_index] = entry
         else:
             self._log.append(entry)
+        return log_index
 
     @property
     def last_term(self):

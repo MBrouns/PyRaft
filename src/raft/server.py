@@ -47,11 +47,11 @@ class RaftServer:
 
     def become_leader(self):
         self._logger.info(
-            f"Transitioned to leader, setting next_index to {max(len(self.log) - 1, 0)}"
+            f"Transitioned to leader, setting next_index to {max(len(self.log), 0)}"
         )
         self.state = State.LEADER
 
-        self.next_index = [max(0, len(self.log) - 1) for _ in range(self.num_servers)]
+        self.next_index = [max(0, len(self.log)) for _ in range(self.num_servers)]
         self.match_index = [0 for _ in range(self.num_servers)]
 
     def become_follower(self):
@@ -61,6 +61,21 @@ class RaftServer:
         self.term += 1
         self.voted_for = self.server_no
         self.received_votes.add(self.server_no)
+        self.request_votes()
+
+    def request_votes(self):
+        followers = [
+            server for server in range(self.num_servers) if server != self.server_no
+        ]
+        for server_no in followers:
+            self.send(
+                server_no,
+                RequestVote(
+                    term=self.term,
+                    candidate_log_len=len(self.log),
+                    last_log_term=self.log.last_term,
+                ),
+            )
 
     def handle_election_timeout(self):
         pass
@@ -72,7 +87,11 @@ class RaftServer:
             self.become_leader()
 
     def send(self, to, content):
-        self.outbox.put(Message(sender=self.server_no, term=self.term, recipient=to, content=content))
+        self.outbox.put(
+            Message(
+                sender=self.server_no, term=self.term, recipient=to, content=content
+            )
+        )
 
     def handle_message(self, message: Message):
         message_handlers = {
@@ -84,7 +103,7 @@ class RaftServer:
             VoteDenied: self.handle_vote_denied,
         }
         self._logger.info(
-            f"Received {type(message.content)} message from server {message.sender}"
+            f"Received {message.content} message from server {message.sender}"
         )
 
         if message.term < self.term:
@@ -132,7 +151,7 @@ class RaftServer:
                 f"candidate log was on term {last_log_term} while own log length was {self.log.last_term}"
             )
 
-        return VoteGranted(self.server_no)
+        return VoteGranted()
 
     def _append_entries_msg(self, server_no):
         if not self.state == State.LEADER:
@@ -140,9 +159,9 @@ class RaftServer:
 
         log_index = self.next_index[server_no]
 
-        if log_index == len(self.log):
+        if log_index >= len(self.log):
             self._logger.info(
-                f"{server_no} already has all log entries {log_index}/{log_index}"
+                f"{server_no} already has all log entries {log_index}/{len(self.log)}"
             )
             # TODO: this needs to be the heartbeat. check whether this is correct
             return AppendEntries(
@@ -164,7 +183,9 @@ class RaftServer:
         )
 
     def handle_heartbeat(self):
-        followers = [server for server in range(self.num_servers) if server != self.server_no]
+        followers = [
+            server for server in range(self.num_servers) if server != self.server_no
+        ]
         for server_no in followers:
             append_entries_msg = self._append_entries_msg(server_no)
             if append_entries_msg:
@@ -184,13 +205,13 @@ class RaftServer:
         Returns:
 
         """
-        if not self.state != State.FOLLOWER:
-            self._logger.info(f"received append entries call while current state ")
+        if self.state != State.FOLLOWER:
+            self._logger.info(f"received append entries call while current state was {self.state}")
             self.become_follower()
 
         self.leader_id = leader_id
         try:
-            self.log.append(
+            replicated_index = self.log.append(
                 log_index=log_index, prev_log_term=prev_log_term, entry=entry
             )
         except (LogNotCaughtUpError, LogDifferentTermError) as e:
@@ -204,9 +225,9 @@ class RaftServer:
         # those won’t be removed, and if leaderCommit is beyond the entries the leader sent you,
         # you may apply incorrect entries.
         if leader_commit > self.commit_index:
-            self.commit_index = min(leader_commit, log_index)
+            self.commit_index = min(leader_commit, replicated_index)
 
-        return AppendEntriesSucceeded(log_index)
+        return AppendEntriesSucceeded(replicated_index)
 
     def handle_append_entries_succeeded(self, other_server_no, replicated_index):
         if self.state != State.LEADER:
@@ -222,7 +243,7 @@ class RaftServer:
     def handle_append_entries_failed(self, other_server_no, reason):
         if self.state != State.LEADER:
             self._logger.info(
-                f"Received an AppendEntriesFailed message from {other_server_no}"
+                f"Received an AppendEntriesFailed message from {other_server_no} "
                 f"but current state is not leader. Ignoring the message"
             )
             return
@@ -230,7 +251,7 @@ class RaftServer:
         new_try_log_index = self.next_index[other_server_no] - 1
 
         self._logger.info(
-            f"Received an AppendEntriesFailed message from {other_server_no}. Reason was: {reason}"
+            f"Received an AppendEntriesFailed message from {other_server_no}. Reason was: {reason} "
             f"retrying with log index {new_try_log_index}"
         )
 

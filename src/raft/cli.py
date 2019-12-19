@@ -10,7 +10,7 @@ from raft.server import RaftServer
 def setup_logger(verbose, log_file_path):
     log_level = logging.DEBUG if verbose else logging.INFO
     c_handler = logging.StreamHandler()
-    f_handler = logging.FileHandler(log_file_path)
+    f_handler = logging.FileHandler(log_file_path, mode='w')
     c_handler.setLevel(log_level)
     f_handler.setLevel(log_level)
 
@@ -44,7 +44,7 @@ def start():
     # print('hi')
 
 if __name__ == "__main__":
-    setup_logger(True, 'raft.log')
+    setup_logger(False, 'raft.log')
     r0 = RaftController(0, RaftServer(server_no=0, num_servers=5), SockBackend(0, config.SERVERS))
     r1 = RaftController(1, RaftServer(server_no=1, num_servers=5), SockBackend(1, config.SERVERS))
     r2 = RaftController(2, RaftServer(server_no=2, num_servers=5), SockBackend(2, config.SERVERS))

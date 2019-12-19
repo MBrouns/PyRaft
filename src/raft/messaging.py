@@ -20,7 +20,7 @@ InvalidTerm = NamedTuple("InvalidTerm")
 RequestVote = NamedTuple(
     "RequestVote", term=int, candidate_log_len=int, last_log_term=int
 )
-VoteGranted = NamedTuple("VoteGranted", voter_id=int)
+VoteGranted = NamedTuple("VoteGranted")
 VoteDenied = NamedTuple("VoteDenied", reason=str)
 
 
