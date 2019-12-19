@@ -1,4 +1,5 @@
 import logging
+import queue
 
 from raft.log import Log, LogNotCaughtUpError, LogDifferentTermError
 from raft.messaging import (
@@ -29,6 +30,7 @@ class RaftServer:
         self.log = Log()  # todo: put a lock around it?
 
         self.state = State.FOLLOWER
+        self.outbox = queue.Queue()
 
         # volatile leader state
         self.next_index = None
@@ -56,7 +58,9 @@ class RaftServer:
         self.state = State.FOLLOWER
 
     def become_candidate(self):
-        pass
+        self.term += 1
+        self.voted_for = self.server_no
+        self.received_votes.add(self.server_no)
 
     def handle_election_timeout(self):
         pass
@@ -66,6 +70,9 @@ class RaftServer:
 
         if len(self.received_votes) > self.num_servers // 2:
             self.become_leader()
+
+    def send(self, to, content):
+        self.outbox.put(Message(sender=self.server_no, term=self.term, recipient=to, content=content))
 
     def handle_message(self, message: Message):
         message_handlers = {
@@ -82,7 +89,7 @@ class RaftServer:
 
         if message.term < self.term:
             self._logger.info(f"Server {message.sender} has a lower term, ignoring")
-            return InvalidTerm()
+            self.send(message.sender, InvalidTerm())
 
         if message.term > self.term:
             self._logger.info(
@@ -100,7 +107,8 @@ class RaftServer:
             )
 
         response = handler(message.sender, **message.content._asdict())
-        return message.sender, response
+        if response is not None:
+            self.send(message.sender, response)
 
     def handle_request_vote(self, term, candidate_id, candidate_log_len, last_log_term):
         if term < self.term:
@@ -123,7 +131,7 @@ class RaftServer:
 
         return VoteGranted(self.server_no)
 
-    def _send_append_entries(self, server_no):
+    def _append_entries_msg(self, server_no):
         if not self.state == State.LEADER:
             return
 
@@ -133,7 +141,13 @@ class RaftServer:
             self._logger.info(
                 f"{server_no} already has all log entries {log_index}/{log_index}"
             )
-            return
+            # TODO: this needs to be the heartbeat. check whether this is correct
+            return AppendEntries(
+                log_index=log_index,
+                prev_log_term=self.log[log_index - 1].term,
+                entry=None,
+                leader_commit=self.commit_index,
+            )
 
         self._logger.info(
             f"sending AppendEntries RPC to {server_no} for index {log_index}/{len(self.log)}"
@@ -147,11 +161,11 @@ class RaftServer:
         )
 
     def handle_heartbeat(self):
-        for server_no in range(self.num_servers):
-            if server_no != self.server_no:
-                resp = self._send_append_entries(server_no)
-                if resp is not None:
-                    yield server_no, resp
+        followers = [server for server in range(self.num_servers) if server != self.server_no]
+        for server_no in followers:
+            append_entries_msg = self._append_entries_msg(server_no)
+            if append_entries_msg:
+                self.send(server_no, self._append_entries_msg(server_no))
 
     def handle_append_entries(
         self, leader_id, log_index, prev_log_term, entry, leader_commit
@@ -218,4 +232,4 @@ class RaftServer:
         )
 
         self.next_index[other_server_no] = new_try_log_index
-        return self._send_append_entries(server_no=other_server_no)
+        return self._append_entries_msg(server_no=other_server_no)

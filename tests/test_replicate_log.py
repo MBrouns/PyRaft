@@ -1,3 +1,5 @@
+import queue
+
 from raft.log import LogEntry
 from raft.messaging import Message
 
@@ -8,24 +10,24 @@ def replicate(leader, follower):
     leader_response_msg = Message(
         sender=leader.server_no,
         term=leader.term,
-        content=leader._send_append_entries(follower.server_no),
+        recipient=follower.server_no,
+        content=leader._append_entries_msg(follower.server_no),
     )
 
     while leader_response_msg is not None:
-        follower_reply = Message(
-            sender=follower.server_no,
-            term=follower.term,
-            content=follower.handle_message(leader_response_msg)[1],
-        )
-        leader_response = leader.handle_message(follower_reply)[1]
-        if leader_response is None:
-            leader_response = leader._send_append_entries(follower.server_no)
-            if leader_response is None:  # already replicated
-                break
+        follower.handle_message(leader_response_msg)
+        follower_reply = follower.outbox.get()
 
-        leader_response_msg = Message(
-            sender=leader.server_no, term=leader.term, content=leader_response
-        )
+        leader.handle_message(follower_reply)
+        try:
+            leader_response_msg = leader.outbox.get(False)
+        except queue.Empty:
+            msg = leader._append_entries_msg(follower.server_no)
+            if msg.entry is None:  # already replicated
+                break
+            leader.send(follower, msg)
+            leader_response_msg = leader.outbox.get()
+
 
 
 def logs_same(log1, log2):

@@ -25,23 +25,24 @@ class SockBackend:
     def broadcast(self, msg):
         pass
 
-    def send(self, server_no, msg):
-        if server_no == self._server_no:
-            raise ValueError(f"server {server_no} tried to send message to self")
+    def send(self, msg):
+        recipient = msg.recipient
+        if recipient == self._server_no:
+            raise ValueError(f"server {recipient} tried to send message to self")
 
-        s = self._connections[server_no]
+        s = self._connections[recipient]
         try:
             send_message(s, bytes(msg))
             self._logger.info(
-                f"sending a message to {server_no} using a cached connection"
+                f"sending a message to {recipient} using a cached connection"
             )
         except (AttributeError, ConnectionRefusedError):
             self._logger.info(
-                f"no cached connection for server {server_no}, connecting to {self._server_config[server_no]}"
+                f"no cached connection for server {recipient}, connecting to {self._server_config[recipient]}"
             )
             s = socket(AF_INET, SOCK_STREAM)
-            s.connect(self._server_config[server_no])
-            self._connections[server_no] = s
+            s.connect(self._server_config[recipient])
+            self._connections[recipient] = s
             send_message(s, bytes(msg))
 
     def recv(self):

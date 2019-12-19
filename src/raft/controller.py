@@ -27,9 +27,15 @@ class RaftController:
         ).start()
         self._logger.info(f"starting message receiver")
         threading.Thread(
-            target=self._message_loop,
+            target=self._rcv_message_loop,
             daemon=True,
-            name=f"RaftController-{self.server_no}-message-loop",
+            name=f"RaftController-{self.server_no}-rcv-message-loop",
+        ).start()
+        self._logger.info(f"starting message sender")
+        threading.Thread(
+            target=self._send_message_loop,
+            daemon=True,
+            name=f"RaftController-{self.server_no}-send-message-loop",
         ).start()
         self._logger.info("starting heartbeat")
         threading.Thread(
@@ -44,10 +50,15 @@ class RaftController:
             name=f"RaftController-{self.server_no}-election-timeout",
         ).start()
 
-    def _message_loop(self):
+    def _rcv_message_loop(self):
         while True:
             msg = self._net.recv()
             self._events.put(("message", msg))
+
+    def _send_message_loop(self):
+        while True:
+            message = self._machine.outbox.get()
+            self._net.send(message)
 
     def _heartbeat_timer(self):
         while True:
@@ -60,23 +71,15 @@ class RaftController:
     def _event_loop(self):
         while True:
             evt, *args = self._events.get()
-
             self._logger.debug("Event %r %r", evt, args)
 
             if evt == "message":
-                resp = self._machine.handle_message(*args)
-                if resp[1] is not None:
-                    self.send(*resp)
+                self._machine.handle_message(*args)
             elif evt == "election_timeout":
                 self._machine.handle_election_timeout()
             elif evt == "heartbeat":
-                for resp in self._machine.handle_heartbeat():
-                    if resp is not None:
-                        self.send(*resp)
+                self._machine.handle_heartbeat()
             else:
                 raise RuntimeError("Unknown event")
 
-    def send(self, to, content):
-        self._net.send(
-            to, Message(sender=self.server_no, term=self._machine.term, content=content)
-        )
+

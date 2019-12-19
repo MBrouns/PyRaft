@@ -17,8 +17,6 @@ class Log:
         self._log = []
 
     def append(self, log_index, prev_log_term, entry):
-        if not isinstance(entry, LogEntry):
-            raise ValueError(f"expected a LogEntry instance, got {type(entry)} instead")
         if log_index > len(self):
             raise LogNotCaughtUpError(
                 f"tried to assign to index {log_index} but log was only length {len(self)}"
@@ -28,6 +26,10 @@ class Log:
                 f"Tried to assign to log where previous entries term was {self[log_index - 1].term} "
                 f"but prev_log_term was {prev_log_term}"
             )
+        if entry is None:
+            return
+        if not isinstance(entry, LogEntry):
+            raise ValueError(f"expected a LogEntry instance, got {type(entry)} instead")
 
         # If an existing entry conflicts with a new one (same index but different terms),
         # delete the existing entry and all that follow it.

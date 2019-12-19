@@ -35,13 +35,14 @@ class Message:
         VoteDenied,
     )
 
-    def __init__(self, sender, term, content):
+    def __init__(self, sender, term, recipient, content):
         if not isinstance(content, self.ALLOWED_MESSAGES):
             raise ValueError(
                 f"expected message to be in {self.ALLOWED_MESSAGES}, got {type(content)}"
             )
         self.sender = sender
         self.term = term
+        self.recipient = recipient
         self.content = content
 
     def __bytes__(self):
