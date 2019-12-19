@@ -1,5 +1,7 @@
 import logging
 import queue
+from collections import Iterable
+from functools import wraps
 
 from raft.log import Log, LogNotCaughtUpError, LogDifferentTermError
 from raft.messaging import (
@@ -13,6 +15,24 @@ from raft.messaging import (
     VoteDenied,
 )
 from raft.state_machine import State
+
+
+def only(*states, silent=False):
+    if not isinstance(states, Iterable):
+        states = {states}
+
+    def wrapper(func):
+        @wraps(func)
+        def impl(self, *args, **kwargs):
+            if self.state not in states:
+                if not silent:
+                    self._logger.info(f"attempted to call {func.__name__} but current state is {self.state}, not in {states}")
+                return
+            return func(self, *args, **kwargs)
+        return impl
+    return wrapper
+
+
 
 
 class RaftServer:
@@ -58,7 +78,6 @@ class RaftServer:
         self.state = State.FOLLOWER
 
     def become_candidate(self):
-
         self.state = State.CANDIDATE
         self.term += 1
 
@@ -68,9 +87,8 @@ class RaftServer:
         self.outbox.put("reset_election_timeout")
         self.request_votes()
 
+    @only(State.CANDIDATE)
     def request_votes(self):
-        if self.state != State.CANDIDATE:
-            return
         followers = [
             server for server in range(self.num_servers) if server != self.server_no
         ]
@@ -84,10 +102,8 @@ class RaftServer:
                 ),
             )
 
+    @only(State.CANDIDATE, State.FOLLOWER, silent=True)
     def handle_election_timeout(self):
-        if self.state == State.LEADER:
-            return
-
         self.become_candidate()
 
     def handle_vote_granted(self, voter_id):
@@ -143,9 +159,8 @@ class RaftServer:
         if response is not None:
             self.send(message.sender, response)
 
+    @only(State.CANDIDATE)
     def handle_vote_denied(self, server_no, reason):
-        if self.state != State.CANDIDATE:
-            return
         self._logger.info(f"did not get vote from server {server_no} because {reason}")
 
     def handle_request_vote(self, candidate_id, term, candidate_log_len, last_log_term):
@@ -170,14 +185,12 @@ class RaftServer:
         self.outbox.put("reset_election_timeout")
         return VoteGranted()
 
+    @only(State.LEADER)
     def _append_entries_msg(self, server_no):
-        if not self.state == State.LEADER:
-            return
-
         log_index = self.next_index[server_no]
 
         if log_index >= len(self.log):
-            self._logger.info(
+            self._logger.debug(
                 f"{server_no} already has all log entries {log_index}/{len(self.log)}"
             )
             return AppendEntries(
@@ -198,6 +211,7 @@ class RaftServer:
             leader_commit=self.commit_index,
         )
 
+    @only(State.LEADER, silent=True)
     def handle_heartbeat(self):
         followers = [
             server for server in range(self.num_servers) if server != self.server_no
@@ -246,25 +260,13 @@ class RaftServer:
 
         return AppendEntriesSucceeded(replicated_index)
 
+    @only(State.LEADER)
     def handle_append_entries_succeeded(self, other_server_no, replicated_index):
-        if self.state != State.LEADER:
-            self._logger.info(
-                f"Received an AppendEntriesSucceeded message from {other_server_no}"
-                f"but current state is not leader. Ignoring the message"
-            )
-            return
-
         self.match_index[other_server_no] = replicated_index
         self.next_index[other_server_no] = replicated_index + 1
 
+    @only(State.LEADER)
     def handle_append_entries_failed(self, other_server_no, reason):
-        if self.state != State.LEADER:
-            self._logger.info(
-                f"Received an AppendEntriesFailed message from {other_server_no} "
-                f"but current state is not leader. Ignoring the message"
-            )
-            return
-
         new_try_log_index = self.next_index[other_server_no] - 1
 
         self._logger.info(

@@ -70,7 +70,7 @@ class RaftController:
             with self.heartbeats_since_election_timeout_lock:
                 self.heartbeats_since_election_timeout += 1
 
-            if self.heartbeats_since_election_timeout >= heartbeats_for_election_timeout:
+            if self.heartbeats_since_election_timeout == heartbeats_for_election_timeout:
                 self._logger.info(f"Election timeout reached")
                 self._events.put(("election_timeout",))
                 heartbeats_for_election_timeout = random.randint(config.MIN_TIMEOUT_HEARTBEATS, config.MAX_TIMEOUT_HEARTBEATS)
