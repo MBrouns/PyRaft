@@ -1,6 +1,6 @@
 import queue
 
-from raft.log import LogEntry
+from raft.log import LogEntry, Log
 from raft.messaging import Message
 from raft.server import RaftServer
 
@@ -34,19 +34,69 @@ def replicate(leader, follower):
 
 def logs_same(log1, log2):
     if len(log1) != len(log2):
-        raise ValueError(f"logs different length: {len(log1)} - {len(log2)}")
+        return False, f"logs different length: {len(log1)} - {len(log2)}"
     for i in range(len(log2)):
         if log1[i] != log2[i]:
-            raise ValueError(f'logs different in ind ex {i}')
+            return False, f"logs different in ind ex {i}"
     return True
 
 
-def test_figure_8_():
-    r0 = RaftServer(server_no=0, num_servers=5)
-    r1 = RaftServer(server_no=1, num_servers=5)
-    r2 = RaftServer(server_no=2, num_servers=5)
-    r3 = RaftServer(server_no=3, num_servers=5)
-    r4 = RaftServer(server_no=4, num_servers=5)
+def test_figure_7(raft_cluster):
+    leader, a, b, c, d, e, f = raft_cluster(7)
+    leader_log_entries = [
+        LogEntry(1, "1"),
+        LogEntry(1, "2"),
+        LogEntry(1, "3"),
+        LogEntry(4, "4"),
+        LogEntry(4, "5"),
+        LogEntry(5, "6"),
+        LogEntry(5, "7"),
+        LogEntry(6, "8"),
+        LogEntry(6, "9"),
+        LogEntry(6, "10"),
+    ]
+    leader.log = Log.from_entries(leader_log_entries)
+    a.log = Log.from_entries(leader_log_entries[:-1])
+    b.log = Log.from_entries(leader_log_entries[:4])
+    c.log = Log.from_entries(leader_log_entries + [LogEntry(6, "11")])
+    d.log = Log.from_entries(
+        leader_log_entries + [LogEntry(7, "11"), LogEntry(7, "11")]
+    )
+    e.log = Log.from_entries(
+        leader_log_entries[:5] + [LogEntry(4, "6"), LogEntry(4, "7")]
+    )
+    f_log_entries = [
+        LogEntry(2, "4"),
+        LogEntry(2, "5"),
+        LogEntry(2, "6"),
+        LogEntry(3, "7"),
+        LogEntry(3, "8"),
+        LogEntry(3, "9"),
+        LogEntry(3, "10"),
+        LogEntry(3, "11"),
+    ]
+    f.log = Log.from_entries(leader_log_entries[:3] + f_log_entries)
+
+    leader.become_leader()
+    replicate(leader, a)
+    replicate(leader, b)
+    replicate(leader, c)
+    replicate(leader, d)
+    replicate(leader, e)
+    replicate(leader, f)
+
+    assert logs_same(leader.log, a.log)
+    assert logs_same(leader.log, b.log)
+    assert not logs_same(leader.log, c.log)[0]
+    assert len(c.log) - len(leader.log) == 1
+    assert not logs_same(leader.log, d.log)[0]
+    assert len(d.log) - len(leader.log) == 2
+    assert logs_same(leader.log, e.log)
+    assert logs_same(leader.log, f.log)
+
+
+def test_figure_8(raft_cluster):
+    r0, r1, r2, r3, r4 = raft_cluster(5)
 
     # State a:
     r0.term = 1
@@ -55,7 +105,7 @@ def test_figure_8_():
     r3.term = 1
     r4.term = 1
     r0.become_leader()
-    r0.log.append(log_index=0, prev_log_term=0, entry=LogEntry(r0.term, '1'))
+    r0.log.append(log_index=0, prev_log_term=0, entry=LogEntry(r0.term, "1"))
     replicate(r0, r1)
     replicate(r0, r2)
     replicate(r0, r3)
@@ -63,7 +113,7 @@ def test_figure_8_():
 
     r0.term = 2
     r1.term = 2
-    r0.log.append(log_index=1, prev_log_term=1, entry=LogEntry(r0.term, '2'))
+    r0.log.append(log_index=1, prev_log_term=1, entry=LogEntry(r0.term, "2"))
     replicate(r0, r1)
     assert logs_same(r0.log, r1.log)
 
@@ -71,7 +121,7 @@ def test_figure_8_():
     r0.become_follower()
     r4.term = 3
     r4.become_leader()
-    r4.log.append(log_index=1, prev_log_term=1, entry=LogEntry(r4.term, '3'))
+    r4.log.append(log_index=1, prev_log_term=1, entry=LogEntry(r4.term, "3"))
 
     # state c:
     r4.become_follower()
@@ -79,7 +129,7 @@ def test_figure_8_():
     r0.term = 4
     replicate(r0, r2)
     assert logs_same(r0.log, r2.log)
-    r0.log.append(log_index=2, prev_log_term=2, entry=LogEntry(r0.term, '4'))
+    r0.log.append(log_index=2, prev_log_term=2, entry=LogEntry(r0.term, "4"))
 
     # state d:
     r0.become_follower()

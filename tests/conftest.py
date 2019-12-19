@@ -22,9 +22,8 @@ class MockBackend:
 
 @pytest.fixture
 def raft_controller():
-    return RaftController(
+    return RaftController()
 
-    )
 
 @pytest.fixture
 def no_network_raft_follower():
@@ -65,6 +64,15 @@ def filled_log():
     assert len(log) == 6
     return log
 
+
+@pytest.fixture
+def raft_cluster():
+    def impl(num_servers):
+        return [
+            RaftServer(server_no=i, num_servers=num_servers)
+            for i in range(num_servers)
+        ]
+    return impl
 
 @pytest.fixture
 def no_network_raft_leader_with_log(no_network_raft_leader, filled_log):

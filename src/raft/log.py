@@ -16,6 +16,12 @@ class Log:
     def __init__(self):
         self._log = []
 
+    @classmethod
+    def from_entries(cls, entries):
+        log = cls()
+        log._log = entries
+        return log
+
     def append(self, log_index, prev_log_term, entry):
         if log_index > len(self):
             raise LogNotCaughtUpError(
