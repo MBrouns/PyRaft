@@ -19,4 +19,8 @@ def test_become_candidate(no_network_raft_follower):
 
     for i in range(no_network_raft_follower.num_servers - 1):
         request_vote = no_network_raft_follower.outbox.get()
-        assert request_vote.content == RequestVote(term=1, candidate_log_len=0, last_log_term=0)
+        assert (
+            request_vote == "reset_election_timeout"
+            or request_vote.content
+            == RequestVote(term=1, candidate_log_len=0, last_log_term=0)
+        )

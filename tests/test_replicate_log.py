@@ -17,8 +17,10 @@ def replicate(leader, follower):
 
     while leader_response_msg is not None:
         follower.handle_message(leader_response_msg)
-        follower_reply = follower.outbox.get()
 
+        follower_reply = follower.outbox.get()
+        if isinstance(follower_reply, str):
+            follower_reply = follower.outbox.get()
         leader.handle_message(follower_reply)
         try:
             leader_response_msg = leader.outbox.get(False)
