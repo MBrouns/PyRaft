@@ -3,8 +3,7 @@ from raft import config
 from raft.controller import RaftController
 from raft.log import Log, LogEntry
 from raft.network import SockBackend
-from raft.server import RaftServer
-from raft.state_machine import State
+from raft.server import RaftServer, State
 
 
 class MockBackend:

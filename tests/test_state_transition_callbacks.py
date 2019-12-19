@@ -1,5 +1,5 @@
 from raft.messaging import RequestVote
-from raft.state_machine import State
+from raft.server import State
 
 
 def test_become_leader(no_network_raft_leader, filled_log):

@@ -5,7 +5,7 @@ from raft.messaging import (
     Message,
     InvalidTerm,
 )
-from raft.state_machine import State
+from raft.server import State
 
 
 def test_handle_message_invalid_term(no_network_raft_follower):

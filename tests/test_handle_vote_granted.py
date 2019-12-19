@@ -1,6 +1,6 @@
 from unittest import mock
 
-from raft.state_machine import State
+from raft.server import State
 
 
 def test_handle_vote_granted_same_voter(no_network_raft_follower):

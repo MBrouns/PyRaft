@@ -1,6 +1,7 @@
 import logging
 import queue
 from collections import Iterable
+from enum import Enum
 from functools import wraps
 
 from raft.log import Log, LogNotCaughtUpError, LogDifferentTermError
@@ -14,7 +15,12 @@ from raft.messaging import (
     VoteGranted,
     VoteDenied,
 )
-from raft.state_machine import State
+
+
+class State(Enum):
+    LEADER = 1
+    CANDIDATE = 2
+    FOLLOWER = 3
 
 
 def only(*states, silent=False):
@@ -26,13 +32,15 @@ def only(*states, silent=False):
         def impl(self, *args, **kwargs):
             if self.state not in states:
                 if not silent:
-                    self._logger.info(f"attempted to call {func.__name__} but current state is {self.state}, not in {states}")
+                    self._logger.info(
+                        f"attempted to call {func.__name__} but current state is {self.state}, not in {states}"
+                    )
                 return
             return func(self, *args, **kwargs)
+
         return impl
+
     return wrapper
-
-
 
 
 class RaftServer:
@@ -81,7 +89,7 @@ class RaftServer:
         self.state = State.CANDIDATE
         self.term += 1
 
-        self._logger.info( f"Transitioned to candidate in term {self.term}")
+        self._logger.info(f"Transitioned to candidate in term {self.term}")
         self.voted_for = self.server_no
         self.received_votes.add(self.server_no)
         self.outbox.put("reset_election_timeout")
@@ -106,21 +114,15 @@ class RaftServer:
     def handle_election_timeout(self):
         self.become_candidate()
 
-    def _handle_vote_granted(self, voter_id):
-        if self.state != State.CANDIDATE:
-            return
-
-        self.received_votes.add(voter_id)
-
-        if len(self.received_votes) > self.num_servers // 2:
-            self.become_leader()
-
-    def _send(self, to, content):
-        self.outbox.put(
-            Message(
-                sender=self.server_no, term=self.term, recipient=to, content=content
-            )
-        )
+    @only(State.LEADER, silent=True)
+    def handle_heartbeat(self):
+        followers = [
+            server for server in range(self.num_servers) if server != self.server_no
+        ]
+        for server_no in followers:
+            append_entries_msg = self._append_entries_msg(server_no)
+            if append_entries_msg:
+                self._send(server_no, self._append_entries_msg(server_no))
 
     def handle_message(self, message: Message):
         message_handlers = {
@@ -163,7 +165,16 @@ class RaftServer:
     def _handle_vote_denied(self, server_no, reason):
         self._logger.info(f"did not get vote from server {server_no} because {reason}")
 
-    def _handle_request_vote(self, candidate_id, term, candidate_log_len, last_log_term):
+    @only(State.CANDIDATE)
+    def _handle_vote_granted(self, voter_id):
+        self.received_votes.add(voter_id)
+
+        if len(self.received_votes) > self.num_servers // 2:
+            self.become_leader()
+
+    def _handle_request_vote(
+        self, candidate_id, term, candidate_log_len, last_log_term
+    ):
         if term < self.term:
             return VoteDenied(
                 f"Vote came from server on term {term} while own term was {self.term}"
@@ -211,16 +222,6 @@ class RaftServer:
             leader_commit=self.commit_index,
         )
 
-    @only(State.LEADER, silent=True)
-    def handle_heartbeat(self):
-        followers = [
-            server for server in range(self.num_servers) if server != self.server_no
-        ]
-        for server_no in followers:
-            append_entries_msg = self._append_entries_msg(server_no)
-            if append_entries_msg:
-                self._send(server_no, self._append_entries_msg(server_no))
-
     def _handle_append_entries(
         self, leader_id, log_index, prev_log_term, entry, leader_commit
     ):
@@ -236,7 +237,9 @@ class RaftServer:
 
         """
         if self.state != State.FOLLOWER:
-            self._logger.info(f"received append entries call while current state was {self.state}")
+            self._logger.info(
+                f"received append entries call while current state was {self.state}"
+            )
             self.become_follower()
 
         self.outbox.put("reset_election_timeout")
@@ -276,3 +279,10 @@ class RaftServer:
 
         self.next_index[other_server_no] = new_try_log_index
         return self._append_entries_msg(server_no=other_server_no)
+
+    def _send(self, to, content):
+        self.outbox.put(
+            Message(
+                sender=self.server_no, term=self.term, recipient=to, content=content
+            )
+        )
