@@ -44,18 +44,21 @@ def only(*states, silent=False):
 
 
 class RaftServer:
-    def __init__(self, server_no, num_servers):
+    def __init__(self, server_no, num_servers, state_machine):
         self.server_no = server_no
         self._logger = logging.getLogger(f"RaftServer-{server_no}")
         self.num_servers = num_servers
+        self._state_machine = state_machine
 
+        # Persistent state
         self._term = 0
-        self.commit_index = 0
         self.voted_for = None
+        self.log = Log()
+
+        self._commit_index = 0
+        self.last_applied = -1
         self.leader_id = None
         self.received_votes = set()
-
-        self.log = Log()  # todo: put a lock around it?
 
         self.state = State.FOLLOWER
         self.outbox = queue.Queue()
@@ -63,6 +66,17 @@ class RaftServer:
         # volatile leader state
         self.next_index = None
         self.match_index = None
+
+    @property
+    def commit_index(self):
+        return self._commit_index
+
+    @commit_index.setter
+    def commit_index(self, value):
+        self._commit_index = value
+        while value > self.last_applied:
+            self.last_applied += 1
+            self._state_machine.apply(self.log[self.last_applied])
 
     @property
     def term(self):
