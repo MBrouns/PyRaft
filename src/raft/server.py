@@ -45,11 +45,10 @@ def only(*states, silent=False):
 
 
 class RaftServer:
-    def __init__(self, server_no, num_servers, state_machine):
+    def __init__(self, server_no, num_servers):
         self.server_no = server_no
         self._logger = logging.getLogger(f"RaftServer-{server_no}")
         self.num_servers = num_servers
-        self._state_machine = state_machine
 
         # Persistent state
         self._term = 0
@@ -77,7 +76,7 @@ class RaftServer:
         self._commit_index = value
         while value > self.last_applied:
             self.last_applied += 1
-            self._state_machine.apply(self.log[self.last_applied])
+            self.outbox.put(self.log[self.last_applied])
 
     @property
     def term(self):

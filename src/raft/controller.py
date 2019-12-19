@@ -5,15 +5,17 @@ import threading
 import time
 
 from raft import config
+from raft.log import LogEntry
 from raft.messaging import Message
 
 
 class RaftController:
-    def __init__(self, server_no, machine, net):
+    def __init__(self, server_no, machine, net, state_machine):
         self._logger = logging.getLogger(f"RaftController-{server_no}")
         self._events = queue.Queue()
         self._machine = machine
         self._net = net
+        self._state_machine = state_machine
 
         self.heartbeats_since_election_timeout_lock = threading.Lock()
         self.server_no = server_no
@@ -53,27 +55,40 @@ class RaftController:
 
     def _handle_machine_events(self):
         while True:
-            state_machine_event = self._machine.outbox.get()
-            if isinstance(state_machine_event, Message):
-                self._net._send(state_machine_event)
-            elif state_machine_event == "reset_election_timeout":
+            raft_server_event = self._machine.outbox.get()
+            if isinstance(raft_server_event, LogEntry):
+                self._state_machine.apply(raft_server_event)
+            elif isinstance(raft_server_event, Message):
+                self._net.send(raft_server_event)
+            elif raft_server_event == "reset_election_timeout":
                 with self.heartbeats_since_election_timeout_lock:
                     self.heartbeats_since_election_timeout = 0
+            else:
+                raise ValueError(f"controller got unknown event from RaftServer: {raft_server_event}")
 
     def _heartbeat_timer(self):
         self.heartbeats_since_election_timeout = 0
-        heartbeats_for_election_timeout = random.randint(config.MIN_TIMEOUT_HEARTBEATS, config.MAX_TIMEOUT_HEARTBEATS)
+        heartbeats_for_election_timeout = random.randint(
+            config.MIN_TIMEOUT_HEARTBEATS, config.MAX_TIMEOUT_HEARTBEATS
+        )
         while True:
             time.sleep(config.LEADER_HEARTBEAT)
-            self._logger.info(f"HEARTBEAT - {self.heartbeats_since_election_timeout}/{heartbeats_for_election_timeout} for election timeout")
+            self._logger.info(
+                f"HEARTBEAT - {self.heartbeats_since_election_timeout}/{heartbeats_for_election_timeout} for election timeout"
+            )
             self._events.put(("heartbeat",))
             with self.heartbeats_since_election_timeout_lock:
                 self.heartbeats_since_election_timeout += 1
 
-            if self.heartbeats_since_election_timeout == heartbeats_for_election_timeout:
+            if (
+                self.heartbeats_since_election_timeout
+                == heartbeats_for_election_timeout
+            ):
                 self._logger.info(f"Election timeout reached")
                 self._events.put(("election_timeout",))
-                heartbeats_for_election_timeout = random.randint(config.MIN_TIMEOUT_HEARTBEATS, config.MAX_TIMEOUT_HEARTBEATS)
+                heartbeats_for_election_timeout = random.randint(
+                    config.MIN_TIMEOUT_HEARTBEATS, config.MAX_TIMEOUT_HEARTBEATS
+                )
 
     def _event_loop(self):
         while True:
@@ -88,5 +103,3 @@ class RaftController:
                 self._machine.handle_heartbeat()
             else:
                 raise RuntimeError("Unknown event")
-
-

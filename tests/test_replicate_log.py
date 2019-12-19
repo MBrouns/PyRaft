@@ -19,17 +19,21 @@ def replicate(leader, follower):
         follower.handle_message(leader_response_msg)
 
         follower_reply = follower.outbox.get()
-        if isinstance(follower_reply, str):
+        while not isinstance(follower_reply, Message):
             follower_reply = follower.outbox.get()
         leader.handle_message(follower_reply)
         try:
             leader_response_msg = leader.outbox.get(False)
+            while not isinstance(leader_response_msg, Message):
+                leader_response_msg = leader.outbox.get(False)
         except queue.Empty:
             msg = leader._append_entries_msg(follower.server_no)
             if msg.entry is None:  # already replicated
                 break
             leader._send(follower, msg)
             leader_response_msg = leader.outbox.get()
+            while not isinstance(leader_response_msg, Message):
+                leader_response_msg = leader.outbox.get()
 
 
 def logs_same(log1, log2):

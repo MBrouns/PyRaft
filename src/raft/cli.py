@@ -7,6 +7,7 @@ from raft.controller import RaftController
 from raft.log import LogEntry
 from raft.network import SockBackend
 from raft.server import RaftServer
+from raft.state_machine import LoggerStateMachine
 
 
 def setup_logger(verbose, log_file_path):
@@ -47,11 +48,11 @@ def start():
 
 if __name__ == "__main__":
     setup_logger(False, 'raft.log')
-    r0 = RaftController(0, RaftServer(server_no=0, num_servers=5), SockBackend(0, config.SERVERS))
-    r1 = RaftController(1, RaftServer(server_no=1, num_servers=5), SockBackend(1, config.SERVERS))
-    r2 = RaftController(2, RaftServer(server_no=2, num_servers=5), SockBackend(2, config.SERVERS))
-    r3 = RaftController(3, RaftServer(server_no=3, num_servers=5), SockBackend(3, config.SERVERS))
-    r4 = RaftController(4, RaftServer(server_no=4, num_servers=5), SockBackend(4, config.SERVERS))
+    r0 = RaftController(0, RaftServer(server_no=0, num_servers=5, state_machine=LoggerStateMachine(0)), SockBackend(0, config.SERVERS))
+    r1 = RaftController(1, RaftServer(server_no=1, num_servers=5, state_machine=LoggerStateMachine(1)), SockBackend(1, config.SERVERS))
+    r2 = RaftController(2, RaftServer(server_no=2, num_servers=5, state_machine=LoggerStateMachine(2)), SockBackend(2, config.SERVERS))
+    r3 = RaftController(3, RaftServer(server_no=3, num_servers=5, state_machine=LoggerStateMachine(3)), SockBackend(3, config.SERVERS))
+    r4 = RaftController(4, RaftServer(server_no=4, num_servers=5, state_machine=LoggerStateMachine(4)), SockBackend(4, config.SERVERS))
 
     def start():
         r0.start()
@@ -61,7 +62,7 @@ if __name__ == "__main__":
         r4.start()
 
     def add_entry(controller):
-        controller._machine.log.append(len(controller._machine.log), 0, LogEntry(0, 'hello world'))
+        controller._machine.log.append(len(controller._machine.log), controller._machine.log.last_term, LogEntry(controller._machine.term, 'hello world'))
         # r0._machine.log.append(1, 0, LogEntry(0, 'hello world'))
 
     def logs_same(log1, log2):
