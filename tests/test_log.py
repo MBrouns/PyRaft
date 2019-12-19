@@ -26,6 +26,19 @@ def test_log_append_correct():
     assert log[0] == entry
 
 
+def test_log_append_none():
+    log = Log()
+    log.append(log_index=0, prev_log_term=0, entry=None)
+    assert len(log) == 0
+
+
+def test_log_append_invalid_entry():
+    log = Log()
+    with pytest.raises(ValueError):
+        log.append(log_index=0, prev_log_term=0, entry=1)
+    assert len(log) == 0
+
+
 def test_log_append_no_truncate():
     """
     If an existing entry conflicts with a new one (same index but different terms), delete the existing entry and all

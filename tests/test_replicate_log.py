@@ -29,7 +29,6 @@ def replicate(leader, follower):
             leader_response_msg = leader.outbox.get()
 
 
-
 def logs_same(log1, log2):
     if len(log1) != len(log2):
         return False

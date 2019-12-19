@@ -17,3 +17,6 @@ def test_send_append_entries(no_network_raft_leader_with_log):
     assert result == AppendEntries(
         log_index=5, prev_log_term=1, entry=LogEntry(term=1, msg=5), leader_commit=0
     )
+
+def test_send_append_entries_not_leader(no_network_raft_follower):
+    assert no_network_raft_follower._append_entries_msg(1) is None
