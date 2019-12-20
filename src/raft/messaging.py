@@ -23,6 +23,17 @@ RequestVote = NamedTuple(
 VoteGranted = NamedTuple("VoteGranted")
 VoteDenied = NamedTuple("VoteDenied", reason=str)
 
+# Client request messages
+
+Command = NamedTuple("Command", operation=any)  # one of the below
+SetValue = NamedTuple("SetValue", request_id=str, key=str, value=str)
+GetValue = NamedTuple("GetValue", request_id=str, key=str)
+DelValue = NamedTuple("DelValue", request_id=str, key=str)
+NoOp = NamedTuple("NoOp", request_id=str)
+
+Result = NamedTuple("Result", content=str)
+NotTheLeader = NamedTuple("NotTheLeader", leader_id=int)
+
 
 class Message:
     ALLOWED_MESSAGES = (
@@ -33,6 +44,9 @@ class Message:
         RequestVote,
         VoteGranted,
         VoteDenied,
+        Command,
+        Result,
+        NotTheLeader,
     )
 
     def __init__(self, sender, term, recipient, content):
@@ -58,6 +72,9 @@ class Message:
 
         return self.__dict__ == other.__dict__
 
+    def __str__(self):
+        return f"Message from {self.sender} to {self.recipient} on term {self.term} containing {self.content}"
+
 
 def send_message(sock, msg):
     assert isinstance(msg, bytes)
@@ -68,9 +85,11 @@ def send_message(sock, msg):
     sock.sendall(msg)
 
 
-def recv_message(sock):
+def recv_message(sock, timeout=None):
     msg_length = _recv_size(sock)
     logger.debug(f"preparing to receive {msg_length} bytes of data")
+    if timeout:
+        sock.settimeout(timeout)
     msg = _recv(sock, msg_length)
     return msg
 

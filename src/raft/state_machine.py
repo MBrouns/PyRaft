@@ -1,7 +1,5 @@
 import logging
-from typing import NamedTuple
-
-from raft.log import LogEntry
+from raft.messaging import SetValue, DelValue, NoOp
 
 
 class LoggerStateMachine:
@@ -10,12 +8,6 @@ class LoggerStateMachine:
 
     def apply(self, log_entry):
         self._logger.info(f"applying {log_entry} to state_machine")
-
-
-SetValue = NamedTuple("SetValue", key=str, value=str)
-GetValue = NamedTuple("GetValue", key=str)
-DelValue = NamedTuple("DelValue", key=str)
-NoOp = NamedTuple("NoOp")
 
 
 class KVStateMachine:

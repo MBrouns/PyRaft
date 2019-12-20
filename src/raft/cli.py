@@ -3,6 +3,7 @@ import time
 
 import click
 from raft import config
+from raft.client import DistDict
 from raft.controller import RaftController
 from raft.log import LogEntry
 from raft.network import SockBackend
@@ -48,11 +49,11 @@ def start():
 
 if __name__ == "__main__":
     setup_logger(False, 'raft.log')
-    r0 = RaftController(0, RaftServer(server_no=0, num_servers=5, state_machine=LoggerStateMachine(0)), SockBackend(0, config.SERVERS))
-    r1 = RaftController(1, RaftServer(server_no=1, num_servers=5, state_machine=LoggerStateMachine(1)), SockBackend(1, config.SERVERS))
-    r2 = RaftController(2, RaftServer(server_no=2, num_servers=5, state_machine=LoggerStateMachine(2)), SockBackend(2, config.SERVERS))
-    r3 = RaftController(3, RaftServer(server_no=3, num_servers=5, state_machine=LoggerStateMachine(3)), SockBackend(3, config.SERVERS))
-    r4 = RaftController(4, RaftServer(server_no=4, num_servers=5, state_machine=LoggerStateMachine(4)), SockBackend(4, config.SERVERS))
+    r0 = RaftController(0, RaftServer(server_no=0, num_servers=5), SockBackend(0, config.SERVERS), state_machine=LoggerStateMachine(0))
+    r1 = RaftController(1, RaftServer(server_no=1, num_servers=5), SockBackend(1, config.SERVERS), state_machine=LoggerStateMachine(1))
+    r2 = RaftController(2, RaftServer(server_no=2, num_servers=5), SockBackend(2, config.SERVERS), state_machine=LoggerStateMachine(2))
+    r3 = RaftController(3, RaftServer(server_no=3, num_servers=5), SockBackend(3, config.SERVERS), state_machine=LoggerStateMachine(3))
+    r4 = RaftController(4, RaftServer(server_no=4, num_servers=5), SockBackend(4, config.SERVERS), state_machine=LoggerStateMachine(4))
 
     def start():
         r0.start()
@@ -80,12 +81,12 @@ if __name__ == "__main__":
         assert logs_same(r0._machine.log, r4._machine.log)
 
     start()
+
     time.sleep(1)
     add_entry(r0)
     add_entry(r0)
 
     time.sleep(1)
-    # r0._machine.become_candidate()
+    r0._machine.become_candidate()
 
-    # time.sleep(10)
-
+    client = DistDict(config.SERVERS)

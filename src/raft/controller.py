@@ -17,7 +17,7 @@ class RaftController:
         self._net = net
         self._state_machine = state_machine
 
-        self.heartbeats_since_election_timeout_lock = threading.Lock()
+        self.hb_since_election_timeout_lock = threading.Lock()
         self.server_no = server_no
 
     def start(self):
@@ -56,37 +56,37 @@ class RaftController:
     def _handle_machine_events(self):
         while True:
             raft_server_event = self._machine.outbox.get()
+
             if isinstance(raft_server_event, LogEntry):
                 self._state_machine.apply(raft_server_event)
             elif isinstance(raft_server_event, Message):
                 self._net.send(raft_server_event)
             elif raft_server_event == "reset_election_timeout":
-                with self.heartbeats_since_election_timeout_lock:
-                    self.heartbeats_since_election_timeout = 0
+                with self.hb_since_election_timeout_lock:
+                    self.hb_since_election_timeout = 0
             else:
-                raise ValueError(f"controller got unknown event from RaftServer: {raft_server_event}")
+                raise ValueError(
+                    f"controller got unknown event from RaftServer: {raft_server_event}"
+                )
 
     def _heartbeat_timer(self):
-        self.heartbeats_since_election_timeout = 0
-        heartbeats_for_election_timeout = random.randint(
+        self.hb_since_election_timeout = 0
+        hb_for_election_timeout = random.randint(
             config.MIN_TIMEOUT_HEARTBEATS, config.MAX_TIMEOUT_HEARTBEATS
         )
         while True:
             time.sleep(config.LEADER_HEARTBEAT)
             self._logger.info(
-                f"HEARTBEAT - {self.heartbeats_since_election_timeout}/{heartbeats_for_election_timeout} for election timeout"
+                f"HEARTBEAT - {self.hb_since_election_timeout}/{hb_for_election_timeout} for election timeout"
             )
             self._events.put(("heartbeat",))
-            with self.heartbeats_since_election_timeout_lock:
-                self.heartbeats_since_election_timeout += 1
+            with self.hb_since_election_timeout_lock:
+                self.hb_since_election_timeout += 1
 
-            if (
-                self.heartbeats_since_election_timeout
-                == heartbeats_for_election_timeout
-            ):
+            if self.hb_since_election_timeout == hb_for_election_timeout:
                 self._logger.info(f"Election timeout reached")
                 self._events.put(("election_timeout",))
-                heartbeats_for_election_timeout = random.randint(
+                hb_for_election_timeout = random.randint(
                     config.MIN_TIMEOUT_HEARTBEATS, config.MAX_TIMEOUT_HEARTBEATS
                 )
 

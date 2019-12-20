@@ -1,5 +1,4 @@
 import logging
-import math
 import queue
 from collections import Iterable
 from enum import Enum
@@ -15,7 +14,7 @@ from raft.messaging import (
     RequestVote,
     VoteGranted,
     VoteDenied,
-)
+    Command, NotTheLeader, Result)
 
 
 class State(Enum):
@@ -95,6 +94,7 @@ class RaftServer:
 
         self.next_index = [max(0, len(self.log)) for _ in range(self.num_servers)]
         self.match_index = [-1 for _ in range(self.num_servers)]
+        # TODO: commit a NOOp entry
 
     def become_follower(self):
         self.state = State.FOLLOWER
@@ -138,6 +138,15 @@ class RaftServer:
             if append_entries_msg:
                 self._send(server_no, self._append_entries_msg(server_no))
 
+    def _handle_command(self, client_id, operation):
+        # command is any of SetValue, GetValue, DelValue, NoOp
+        if self.state != State.LEADER:
+            self._send(client_id, NotTheLeader(self.leader_id))
+            return
+
+
+        self._send(client_id, Result('ok'))
+
     def handle_message(self, message: Message):
         message_handlers = {
             AppendEntries: self._handle_append_entries,
@@ -147,16 +156,17 @@ class RaftServer:
             VoteGranted: self._handle_vote_granted,
             VoteDenied: self._handle_vote_denied,
             InvalidTerm: lambda *args, **kwargs: None,
+            Command: self._handle_command,
         }
         self._logger.info(
             f"Received {message.content} message from server {message.sender}"
         )
 
-        if message.term < self.term:
+        if message.term is not None and message.term < self.term:
             self._logger.info(f"Server {message.sender} has a lower term, ignoring")
             self._send(message.sender, InvalidTerm())
 
-        if message.term > self.term:
+        if message.term is not None and message.term > self.term:
             self._logger.info(
                 f"Server {message.sender} has an higher term, updating mine and "
                 f"converting to follower"

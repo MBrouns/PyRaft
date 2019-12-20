@@ -14,6 +14,7 @@ def test_increment_commit_index_calls_apply(no_network_raft_follower, log_entry)
     no_network_raft_follower.commit_index = 0
     assert no_network_raft_follower.outbox.get() == log_entry
 
+
 def test_increment_commit_index_doesnt_call_apply(no_network_raft_follower, log_entry):
     no_network_raft_follower.log = Log.from_entries([log_entry])
     no_network_raft_follower.last_applied = 1

@@ -13,7 +13,7 @@ class SockBackend:
         self._server_no = server_no
         self._logger = logging.getLogger(f"RaftServer-{server_no}")
         self._server_config = server_config
-        self._connections = [None for _ in range(len(server_config))]
+        self._connections = {server_no: None for server_no in server_config.keys()}
 
     def start(self):
         threading.Thread(
@@ -58,7 +58,8 @@ class SockBackend:
         )
         while True:
             client, addr = sock.accept()
-            self._logger.debug(f"client connection received from server at {addr}")
+            self._logger.info(f"client connection received from server at {addr}")
+
             t = threading.Thread(
                 target=self._handle_client,
                 args=(client,),
@@ -71,6 +72,10 @@ class SockBackend:
         while True:
             raw_msg = recv_message(client)
             msg = Message.from_bytes(raw_msg)
+            if not isinstance(msg.sender, int):
+                # must be a client
+                self._connections[msg.sender] = client
+
             self._logger.debug(
                 f"received message of {len(raw_msg)} bytes from server {msg.sender}"
             )

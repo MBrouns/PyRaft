@@ -2,7 +2,6 @@ import queue
 
 from raft.log import LogEntry, Log
 from raft.messaging import Message
-from raft.server import RaftServer
 
 
 def replicate(leader, follower):
@@ -35,6 +34,7 @@ def replicate(leader, follower):
             while not isinstance(leader_response_msg, Message):
                 leader_response_msg = leader.outbox.get()
 
+    follower._handle_append_entries(leader.server_no, **leader._append_entries_msg(follower.server_no)._asdict())
 
 def logs_same(log1, log2):
     if len(log1) != len(log2):
@@ -159,11 +159,16 @@ def test_figure_8(raft_cluster):
     replicate(r4, r1)
     replicate(r4, r2)
     replicate(r4, r3)
+
     assert logs_same(r4.log, r1.log)
     assert logs_same(r4.log, r2.log)
     assert logs_same(r4.log, r3.log)
     assert len(r4.log) == 3
     assert r4.commit_index == 2
+    assert r3.commit_index == 2
+    assert r2.commit_index == 2
+    assert r1.commit_index == 0
+    assert r0.commit_index == 0
 
 
 def test_replicate_to_empty_log(
