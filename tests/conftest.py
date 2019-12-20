@@ -1,3 +1,5 @@
+from unittest import mock
+
 import pytest
 from raft import config
 from raft.controller import RaftController
@@ -31,6 +33,7 @@ def no_network_raft_follower():
     return RaftServer(
         server_no=1,
         num_servers=3,
+        state_machine=LoggerStateMachine(1)
     )
 
 
@@ -39,6 +42,7 @@ def no_network_raft_leader():
     server = RaftServer(
         server_no=0,
         num_servers=3,
+        state_machine=LoggerStateMachine(0)
     )
     server.become_leader()
     return server
@@ -68,7 +72,7 @@ def filled_log():
 def raft_cluster():
     def impl(num_servers):
         return [
-            RaftServer(server_no=i, num_servers=num_servers)
+            RaftServer(server_no=i, num_servers=num_servers, state_machine=LoggerStateMachine(i))
             for i in range(num_servers)
         ]
     return impl
@@ -76,5 +80,6 @@ def raft_cluster():
 @pytest.fixture
 def no_network_raft_leader_with_log(no_network_raft_leader, filled_log):
     no_network_raft_leader.log = filled_log
-    no_network_raft_leader.become_leader()
+    with mock.patch.object(no_network_raft_leader, 'leader_log_append') as mocked:
+        no_network_raft_leader.become_leader()
     return no_network_raft_leader

@@ -1,4 +1,5 @@
 import queue
+from unittest import mock
 
 from raft.log import LogEntry, Log
 from raft.messaging import Message
@@ -81,7 +82,8 @@ def test_figure_7(raft_cluster):
     ]
     f.log = Log.from_entries(leader_log_entries[:3] + f_log_entries)
 
-    leader.become_leader()
+    with mock.patch.object(leader, 'leader_log_append') as mocked:
+        leader.become_leader()
     replicate(leader, a)
     replicate(leader, b)
     replicate(leader, c)
@@ -108,7 +110,8 @@ def test_figure_8(raft_cluster):
     r2.term = 1
     r3.term = 1
     r4.term = 1
-    r0.become_leader()
+    with mock.patch.object(r0, 'leader_log_append') as mocked:
+        r0.become_leader()
     r0.log.append(log_index=0, prev_log_term=0, entry=LogEntry(r0.term, "1"))
     replicate(r0, r1)
     replicate(r0, r2)
@@ -125,13 +128,15 @@ def test_figure_8(raft_cluster):
     # State b:
     r0.become_follower()
     r4.term = 3
-    r4.become_leader()
+    with mock.patch.object(r4, 'leader_log_append') as mocked:
+        r4.become_leader()
     r4.log.append(log_index=1, prev_log_term=1, entry=LogEntry(r4.term, "3"))
     assert r4.commit_index == 0
 
     # state c:
     r4.become_follower()
-    r0.become_leader()
+    with mock.patch.object(r0, 'leader_log_append') as mocked:
+        r0.become_leader()
     r0.term = 4
     replicate(r0, r2)
     assert logs_same(r0.log, r2.log)
@@ -140,7 +145,8 @@ def test_figure_8(raft_cluster):
 
     # state d:
     r0.become_follower()
-    r4.become_leader()
+    with mock.patch.object(r4, 'leader_log_append') as mocked:
+        r4.become_leader()
     r4.term = 5
 
     replicate(r4, r0)

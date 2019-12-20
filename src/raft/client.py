@@ -1,6 +1,8 @@
 import uuid
 from socket import socket, AF_INET, SOCK_STREAM
 
+from pip._vendor.requests import Response
+from raft import config
 from raft.messaging import (
     SetValue,
     send_message,
@@ -20,9 +22,10 @@ class NoConnectionError(Exception):
 
 
 class DistDict:
-    def __init__(self, server_config):
+    def __init__(self, server_config, timeout=config.CLIENT_TIMEOUT):
         self.server_config = server_config
         self.client_id = uuid.uuid1()
+        self.timeout = timeout
         self._cached_sock = None
         self._leader_no = None
 
@@ -71,8 +74,11 @@ class DistDict:
                 content=content,
             )
             send_message(self._cached_sock, bytes(message))
-            resp = Message.from_bytes(recv_message(self._cached_sock, timeout=5))
+            resp = Message.from_bytes(recv_message(self._cached_sock, timeout=self.timeout))
+            # TODO: Retrying?
             print("got response", resp)
+            if isinstance(resp.content, NotTheLeader):
+                raise ConnectionRefusedError(f"tried to connect to server {self._leader_no} but it was not the leader")
             return resp
         except (AttributeError, ConnectionRefusedError):
             self._cached_sock, self._leader_no = self._find_leader()

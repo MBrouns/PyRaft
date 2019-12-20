@@ -5,17 +5,15 @@ import threading
 import time
 
 from raft import config
-from raft.log import LogEntry
 from raft.messaging import Message
 
 
 class RaftController:
-    def __init__(self, server_no, machine, net, state_machine):
+    def __init__(self, server_no, machine, net):
         self._logger = logging.getLogger(f"RaftController-{server_no}")
         self._events = queue.Queue()
         self._machine = machine
         self._net = net
-        self._state_machine = state_machine
 
         self.hb_since_election_timeout_lock = threading.Lock()
         self.server_no = server_no
@@ -57,9 +55,7 @@ class RaftController:
         while True:
             raft_server_event = self._machine.outbox.get()
 
-            if isinstance(raft_server_event, LogEntry):
-                self._state_machine.apply(raft_server_event)
-            elif isinstance(raft_server_event, Message):
+            if isinstance(raft_server_event, Message):
                 self._net.send(raft_server_event)
             elif raft_server_event == "reset_election_timeout":
                 with self.hb_since_election_timeout_lock:

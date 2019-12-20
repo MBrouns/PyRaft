@@ -3,7 +3,7 @@ import threading
 from socket import *
 import logging
 
-from raft.messaging import recv_message, send_message, Message
+from raft.messaging import recv_message, send_message, Message, ClientDisconnected
 
 
 class SockBackend:
@@ -70,7 +70,10 @@ class SockBackend:
 
     def _handle_client(self, client):
         while True:
-            raw_msg = recv_message(client)
+            try:
+                raw_msg = recv_message(client)
+            except ClientDisconnected:
+                return
             msg = Message.from_bytes(raw_msg)
             if not isinstance(msg.sender, int):
                 # must be a client

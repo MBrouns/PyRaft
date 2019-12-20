@@ -4,7 +4,7 @@ from collections import Iterable
 from enum import Enum
 from functools import wraps
 
-from raft.log import Log, LogNotCaughtUpError, LogDifferentTermError
+from raft.log import Log, LogNotCaughtUpError, LogDifferentTermError, LogEntry
 from raft.messaging import (
     Message,
     AppendEntries,
@@ -14,7 +14,7 @@ from raft.messaging import (
     RequestVote,
     VoteGranted,
     VoteDenied,
-    Command, NotTheLeader, Result)
+    Command, NotTheLeader, Result, NoOp, GetValue, SetValue, DelValue)
 
 
 class State(Enum):
@@ -44,12 +44,14 @@ def only(*states, silent=False):
 
 
 class RaftServer:
-    def __init__(self, server_no, num_servers):
+    def __init__(self, server_no, num_servers, state_machine):
         self.server_no = server_no
         self._logger = logging.getLogger(f"RaftServer-{server_no}")
         self.num_servers = num_servers
+        self._state_machine = state_machine
 
         # Persistent state
+        # TODO: persist!
         self._term = 0
         self.voted_for = None
         self.log = Log()
@@ -75,7 +77,7 @@ class RaftServer:
         self._commit_index = value
         while value > self.last_applied:
             self.last_applied += 1
-            self.outbox.put(self.log[self.last_applied])
+            self._state_machine.apply(self.log[self.last_applied].msg)
 
     @property
     def term(self):
@@ -94,7 +96,7 @@ class RaftServer:
 
         self.next_index = [max(0, len(self.log)) for _ in range(self.num_servers)]
         self.match_index = [-1 for _ in range(self.num_servers)]
-        # TODO: commit a NOOp entry
+        self.leader_log_append(NoOp(request_id=0))
 
     def become_follower(self):
         self.state = State.FOLLOWER
@@ -138,14 +140,28 @@ class RaftServer:
             if append_entries_msg:
                 self._send(server_no, self._append_entries_msg(server_no))
 
+    @only(State.LEADER)
+    def leader_log_append(self, entry):
+        self.log.append(len(self.log), prev_log_term=self.log.last_term, entry=LogEntry(self.term, entry))
+
     def _handle_command(self, client_id, operation):
         # command is any of SetValue, GetValue, DelValue, NoOp
         if self.state != State.LEADER:
             self._send(client_id, NotTheLeader(self.leader_id))
             return
 
-
-        self._send(client_id, Result('ok'))
+        # TODO: check idempotency
+        if isinstance(operation, NoOp):
+            self._send(client_id, Result('ok'))
+        elif isinstance(operation, GetValue):
+            result = self._state_machine.apply(operation)
+            self._send(client_id, Result(result))
+        elif isinstance(operation, SetValue):
+            self.leader_log_append(operation)
+            self._send(client_id, Result('maybe'))
+        elif isinstance(operation, DelValue):
+            self.leader_log_append(operation)
+            self._send(client_id, Result('maybe'))
 
     def handle_message(self, message: Message):
         message_handlers = {

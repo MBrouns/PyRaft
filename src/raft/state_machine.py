@@ -1,5 +1,5 @@
 import logging
-from raft.messaging import SetValue, DelValue, NoOp
+from raft.messaging import SetValue, DelValue, NoOp, GetValue
 
 
 class LoggerStateMachine:
@@ -15,13 +15,16 @@ class KVStateMachine:
         self._state = {}
         self._logger = logging.getLogger(f"LoggerStateMachine-{server_no}")
 
-    def apply(self, log_entry):
-        operation = log_entry.msg
+    def apply(self, operation):
         if isinstance(operation, SetValue):
             self._state[operation.key] = operation.value
         elif isinstance(operation, DelValue):
             del self._state[operation.key]
         elif isinstance(operation, NoOp):
             pass
+        elif isinstance(operation, GetValue):
+            return self._state.get(operation.key)
+        else:
+            raise ValueError(f"expected operation to be in {SetValue, DelValue, GetValue, NoOp}, got {type(operation)}")
 
 
