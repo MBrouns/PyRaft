@@ -10,6 +10,8 @@ from raft.messaging import (
     Result,
     NotTheLeader,
     NoOp,
+    GetValue,
+    DelValue,
 )
 
 
@@ -77,4 +79,12 @@ class DistDict:
             return self.send(content)
 
     def __setitem__(self, key, value):
-        return self.send(Command(SetValue(request_id=self._request_id(), key=key, value=value)))
+        return self.send(
+            Command(SetValue(request_id=self._request_id(), key=key, value=value))
+        )
+
+    def __getitem__(self, item):
+        return self.send(Command(GetValue(request_id=self._request_id(), key=item)))
+
+    def __delitem__(self, key):
+        return self.send(Command(DelValue(request_id=self._request_id(), key=key)))
