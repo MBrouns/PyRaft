@@ -117,11 +117,6 @@ if __name__ == "__main__":
         assert logs_same(r0._machine.log, r4._machine.log)
 
     start()
-
-    time.sleep(1)
-    # add_entry(r0, SetValue(request_id=uuid.uuid1(), key="a", value="1"))
-    # add_entry(r0, SetValue(request_id=uuid.uuid1(), key="b", value="2"))
-
     time.sleep(1)
     r0._machine.become_candidate()
 

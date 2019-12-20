@@ -205,13 +205,16 @@ class RaftServer:
             self._logger.info(f"Server {message.sender} has a lower term, ignoring")
 
             self._send(message.sender, InvalidTerm())
+            return
 
         if message.term is not None and message.term > self.term:
             self._logger.info(
                 f"Server {message.sender} has an higher term, updating mine and "
                 f"converting to follower"
             )
-            self.become_follower()
+            if self.state == State.LEADER:
+                self.become_follower()
+
             self.term = message.term
 
         try:
@@ -366,6 +369,7 @@ class RaftServer:
                 '_term': self.term,
                 'voted_for': self.voted_for,
                 'log': self.log,
+                'state': self.state
             }, persisted_state_file)
 
     def recover(self):
