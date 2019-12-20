@@ -54,27 +54,37 @@ if __name__ == "__main__":
     setup_logger(False, "raft.log")
     r0 = RaftController(
         0,
-        RaftServer(server_no=0, num_servers=5, state_machine=KVStateMachine(0)),
+        RaftServer(
+            server_no=0, num_servers=5, persist=True, state_machine=KVStateMachine(0)
+        ),
         SockBackend(0, config.SERVERS),
     )
     r1 = RaftController(
         1,
-        RaftServer(server_no=1, num_servers=5, state_machine=KVStateMachine(1)),
+        RaftServer(
+            server_no=1, num_servers=5, persist=True, state_machine=KVStateMachine(1)
+        ),
         SockBackend(1, config.SERVERS),
     )
     r2 = RaftController(
         2,
-        RaftServer(server_no=2, num_servers=5, state_machine=KVStateMachine(2)),
+        RaftServer(
+            server_no=2, num_servers=5, persist=True, state_machine=KVStateMachine(2)
+        ),
         SockBackend(2, config.SERVERS),
     )
     r3 = RaftController(
         3,
-        RaftServer(server_no=3, num_servers=5, state_machine=KVStateMachine(3)),
+        RaftServer(
+            server_no=3, num_servers=5, persist=True, state_machine=KVStateMachine(3)
+        ),
         SockBackend(3, config.SERVERS),
     )
     r4 = RaftController(
         4,
-        RaftServer(server_no=4, num_servers=5, state_machine=KVStateMachine(4)),
+        RaftServer(
+            server_no=4, num_servers=5, persist=True, state_machine=KVStateMachine(4)
+        ),
         SockBackend(4, config.SERVERS),
     )
 
@@ -109,8 +119,8 @@ if __name__ == "__main__":
     start()
 
     time.sleep(1)
-    add_entry(r0, SetValue(request_id=uuid.uuid1(), key="a", value="1"))
-    add_entry(r0, SetValue(request_id=uuid.uuid1(), key="b", value="2"))
+    # add_entry(r0, SetValue(request_id=uuid.uuid1(), key="a", value="1"))
+    # add_entry(r0, SetValue(request_id=uuid.uuid1(), key="b", value="2"))
 
     time.sleep(1)
     r0._machine.become_candidate()

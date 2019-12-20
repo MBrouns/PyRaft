@@ -1,3 +1,4 @@
+import pickle
 from typing import NamedTuple
 
 
@@ -50,6 +51,7 @@ class Log:
             self._log[log_index] = entry
         else:
             self._log.append(entry)
+
         return log_index
 
     @property

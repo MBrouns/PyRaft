@@ -1,4 +1,5 @@
 import logging
+import pickle
 import queue
 from collections import Iterable
 from enum import Enum
@@ -44,14 +45,16 @@ def only(*states, silent=False):
 
 
 class RaftServer:
-    def __init__(self, server_no, num_servers, state_machine):
+    def __init__(self, server_no, num_servers, state_machine, persist=False):
         self.server_no = server_no
         self._logger = logging.getLogger(f"RaftServer-{server_no}")
         self.num_servers = num_servers
         self._state_machine = state_machine
 
+        self.persist = persist
+        self.server_state_path = f'server-{server_no}.state'
+
         # Persistent state
-        # TODO: persist!
         self._term = 0
         self.voted_for = None
         self.log = Log()
@@ -69,6 +72,7 @@ class RaftServer:
         self.match_index = None
         self.unhandled_client_requests = {}
 
+        self.recover()
     @property
     def commit_index(self):
         return self._commit_index
@@ -199,6 +203,7 @@ class RaftServer:
 
         if message.term is not None and message.term < self.term:
             self._logger.info(f"Server {message.sender} has a lower term, ignoring")
+
             self._send(message.sender, InvalidTerm())
 
         if message.term is not None and message.term > self.term:
@@ -352,7 +357,31 @@ class RaftServer:
         self.next_index[other_server_no] = new_try_log_index
         return self._append_entries_msg(server_no=other_server_no)
 
+    def write(self):
+        if not self.persist:
+            return
+
+        with open(self.server_state_path, 'wb') as persisted_state_file:
+            pickle.dump({
+                '_term': self.term,
+                'voted_for': self.voted_for,
+                'log': self.log,
+            }, persisted_state_file)
+
+    def recover(self):
+        if not self.persist:
+            return
+        try:
+            with open(self.server_state_path, 'rb') as persisted_state_file:
+                state = pickle.load(persisted_state_file)
+                self._term = state['_term']
+                self.voted_for = state['voted_for']
+                self.log = state['log']
+        except FileNotFoundError:
+            pass
+
     def _send(self, to, content):
+        self.write()
         self.outbox.put(
             Message(
                 sender=self.server_no, term=self.term, recipient=to, content=content

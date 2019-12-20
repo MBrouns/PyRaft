@@ -15,8 +15,16 @@ class RaftController:
         self._machine = machine
         self._net = net
 
+        self._pause_signal = threading.Event()
+        self._pause_signal.set()
         self.hb_since_election_timeout_lock = threading.Lock()
         self.server_no = server_no
+
+    def pause(self):
+        self._pause_signal.clear()
+
+    def unpause(self):
+        self._pause_signal.set()
 
     def start(self):
         self._logger.info("starting network thread")
@@ -88,6 +96,7 @@ class RaftController:
 
     def _event_loop(self):
         while True:
+            self._pause_signal.wait()
             evt, *args = self._events.get()
             self._logger.debug("Event %r %r", evt, args)
 
