@@ -67,6 +67,7 @@ class RaftServer:
         # volatile leader state
         self.next_index = None
         self.match_index = None
+        self.unhandled_client_requests = {}
 
     @property
     def commit_index(self):
@@ -77,7 +78,10 @@ class RaftServer:
         self._commit_index = value
         while value > self.last_applied:
             self.last_applied += 1
-            self._state_machine.apply(self.log[self.last_applied].msg)
+            operation = self.log[self.last_applied].msg
+            self._state_machine.apply(operation)
+            if operation in self.unhandled_client_requests:
+                self._send(self.unhandled_client_requests[operation], Result('ok'))
 
     @property
     def term(self):
@@ -100,6 +104,7 @@ class RaftServer:
 
     def become_follower(self):
         self.state = State.FOLLOWER
+        self.unhandled_client_requests = {}
 
     def become_candidate(self):
         self.state = State.CANDIDATE
@@ -150,18 +155,32 @@ class RaftServer:
             self._send(client_id, NotTheLeader(self.leader_id))
             return
 
-        # TODO: check idempotency
         if isinstance(operation, NoOp):
             self._send(client_id, Result('ok'))
-        elif isinstance(operation, GetValue):
+            return
+
+        if isinstance(operation, GetValue):
             result = self._state_machine.apply(operation)
             self._send(client_id, Result(result))
-        elif isinstance(operation, SetValue):
+            return
+
+        # Idempotency check
+        for log_index, log_entry in enumerate(self.log):
+            if log_entry.msg.request_id == operation.request_id:
+                if log_index <= self.last_applied:
+                    self._send(client_id, Result('ok'))
+                else:
+                    self.unhandled_client_requests[operation] = client_id
+
+                # Operation was already in the servers log, don't append it again
+                return
+
+        if isinstance(operation, (SetValue, DelValue)):
             self.leader_log_append(operation)
-            self._send(client_id, Result('maybe'))
-        elif isinstance(operation, DelValue):
-            self.leader_log_append(operation)
-            self._send(client_id, Result('maybe'))
+            self.unhandled_client_requests[operation] = client_id
+            return
+
+        raise ValueError(f"Expected command to be in NoOp, GetValue, SetValue, DelValue, got {type(operation)}")
 
     def handle_message(self, message: Message):
         message_handlers = {

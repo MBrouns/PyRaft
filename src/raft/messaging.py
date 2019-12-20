@@ -85,11 +85,9 @@ def send_message(sock, msg):
     sock.sendall(msg)
 
 
-def recv_message(sock, timeout=None):
+def recv_message(sock):
     msg_length = _recv_size(sock)
     logger.debug(f"preparing to receive {msg_length} bytes of data")
-    if timeout:
-        sock.settimeout(timeout)
     msg = _recv(sock, msg_length)
     return msg
 
