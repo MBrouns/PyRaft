@@ -13,7 +13,7 @@ from raft.messaging import (
     NoOp,
     GetValue,
     DelValue,
-)
+    ClientDisconnected)
 
 
 class NoConnectionError(Exception):
@@ -80,7 +80,7 @@ class DistDict:
             if isinstance(resp.content, NotTheLeader):
                 raise ConnectionRefusedError(f"tried to connect to server {self._leader_no} but it was not the leader")
 
-        except (AttributeError, ConnectionRefusedError, timeout):
+        except (AttributeError, ConnectionRefusedError, ClientDisconnected, timeout):
             print(f"was either connected to a server that wasn't the leader, or got a timeout")
             self._cached_sock, self._leader_no = self._find_leader()
             return self.send(content)

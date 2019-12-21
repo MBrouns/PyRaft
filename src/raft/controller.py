@@ -19,6 +19,7 @@ class RaftController:
         self._pause_signal.set()
         self.hb_since_election_timeout_lock = threading.Lock()
         self.server_no = server_no
+        self._threads = {}
 
     def pause(self):
         self._pause_signal.clear()
@@ -30,29 +31,31 @@ class RaftController:
         self._logger.info("starting network thread")
         self._net.start()
         self._logger.info("starting event loop")
-        threading.Thread(
+        self._threads['event-loop'] = threading.Thread(
             target=self._event_loop,
             daemon=True,
             name=f"RaftController-{self.server_no}-event-loop",
-        ).start()
+        )
         self._logger.info(f"starting message receiver")
-        threading.Thread(
+        self._threads['rcv-message'] = threading.Thread(
             target=self._rcv_message_loop,
             daemon=True,
             name=f"RaftController-{self.server_no}-rcv-message-loop",
-        ).start()
+        )
         self._logger.info(f"starting message sender")
-        threading.Thread(
+        self._threads['send-message'] = threading.Thread(
             target=self._handle_machine_events,
             daemon=True,
             name=f"RaftController-{self.server_no}-send-message-loop",
-        ).start()
+        )
         self._logger.info("starting heartbeat")
-        threading.Thread(
+        self._threads['heartbeat'] = threading.Thread(
             target=self._heartbeat_timer,
             daemon=True,
             name=f"RaftController-{self.server_no}-heartbeat",
-        ).start()
+        )
+        for thread in self._threads.values():
+            thread.start()
 
     def _rcv_message_loop(self):
         while True:
@@ -75,24 +78,31 @@ class RaftController:
 
     def _heartbeat_timer(self):
         self.hb_since_election_timeout = 0
-        hb_for_election_timeout = random.randint(
+        self.hb_for_election_timeout = random.randint(
             config.MIN_TIMEOUT_HEARTBEATS, config.MAX_TIMEOUT_HEARTBEATS
         )
         while True:
             time.sleep(config.LEADER_HEARTBEAT)
             self._logger.info(
-                f"HEARTBEAT - {self.hb_since_election_timeout}/{hb_for_election_timeout} for election timeout"
+                f"HEARTBEAT - {self.hb_since_election_timeout}/{self.hb_for_election_timeout} for election timeout"
             )
             self._events.put(("heartbeat",))
             with self.hb_since_election_timeout_lock:
                 self.hb_since_election_timeout += 1
 
-            if self.hb_since_election_timeout == hb_for_election_timeout:
+            if self.hb_since_election_timeout >= self.hb_for_election_timeout:
                 self._logger.info(f"Election timeout reached")
                 self._events.put(("election_timeout",))
-                hb_for_election_timeout = random.randint(
+                self.hb_for_election_timeout = random.randint(
                     config.MIN_TIMEOUT_HEARTBEATS, config.MAX_TIMEOUT_HEARTBEATS
                 )
+
+    def healthy(self):
+        for thread_name, thread in self._threads.items():
+            thread.join(timeout=0.0)
+            if not thread.is_alive():
+                return False
+        return True
 
     def _event_loop(self):
         while True:

@@ -36,14 +36,21 @@ class SockBackend:
             self._logger.debug(
                 f"sending a message to {recipient} using a cached connection"
             )
+        except (timeout, BrokenPipeError, ConnectionRefusedError):
+            self._connections[recipient] = None  # retry next time
         except (AttributeError, ConnectionRefusedError):
             self._logger.debug(
                 f"no cached connection for server {recipient}, connecting to {self._server_config[recipient]}"
             )
             s = socket(AF_INET, SOCK_STREAM)
-            s.connect(self._server_config[recipient])
-            self._connections[recipient] = s
-            send_message(s, bytes(msg))
+            try:
+                s.connect(self._server_config[recipient])
+                s.settimeout(1)
+            except ConnectionRefusedError:
+                pass
+            else:
+                self._connections[recipient] = s
+                send_message(s, bytes(msg))
 
     def recv(self):
         return self.inbox.get()

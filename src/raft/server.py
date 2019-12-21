@@ -135,8 +135,10 @@ class RaftServer:
                 ),
             )
 
-    @only(State.CANDIDATE, State.FOLLOWER, silent=True)
+    # @only([State.CANDIDATE, State.FOLLOWER], silent=True)
     def handle_election_timeout(self):
+        if self.state == State.LEADER:
+            pass
         self.become_candidate()
 
     @only(State.LEADER, silent=True)
@@ -212,8 +214,7 @@ class RaftServer:
                 f"Server {message.sender} has an higher term, updating mine and "
                 f"converting to follower"
             )
-            if self.state == State.LEADER:
-                self.become_follower()
+            self.become_follower()
 
             self.term = message.term
 
