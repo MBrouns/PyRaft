@@ -104,6 +104,7 @@ class RaftServer:
 
         self.next_index = [max(0, len(self.log)) for _ in range(self.num_servers)]
         self.match_index = [-1 for _ in range(self.num_servers)]
+        self.match_index[self.server_no] = len(self.log)
         self.leader_log_append(NoOp(request_id=0))
 
     def become_follower(self):
@@ -143,6 +144,8 @@ class RaftServer:
 
     @only(State.LEADER, silent=True)
     def handle_heartbeat(self):
+        self.outbox.put("reset_election_timeout")
+
         followers = [
             server for server in range(self.num_servers) if server != self.server_no
         ]
@@ -154,6 +157,7 @@ class RaftServer:
     @only(State.LEADER)
     def leader_log_append(self, entry):
         self.log.append(len(self.log), prev_log_term=self.log.last_term, entry=LogEntry(self.term, entry))
+        self.match_index[self.server_no] = len(self.log)
 
     def _handle_command(self, client_id, operation):
         # command is any of SetValue, GetValue, DelValue, NoOp
@@ -262,6 +266,7 @@ class RaftServer:
             )
 
         self.outbox.put("reset_election_timeout")
+        self.voted_for = candidate_id
         return VoteGranted()
 
     @only(State.LEADER)
@@ -338,9 +343,13 @@ class RaftServer:
         self._update_committed_entries()
 
     def _update_committed_entries(self):
+        self._logger.info(f"checking whether log entries can be committed")
+        self._logger.info(f"match index: {self.match_index}")
+
         majority_match_n = sorted(self.match_index)[self.num_servers // 2]
         possible_ns = range(self.commit_index, min(majority_match_n, len(self.log)) + 1)
 
+        self._logger.info(f"possible entries that can be committed: {possible_ns}")
         n = None
         for possible_n in possible_ns:
             if self.log[possible_n].term == self.term:
