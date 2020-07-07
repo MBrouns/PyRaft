@@ -4,7 +4,8 @@ An implementation of the Raft Distributed Concensus Protocol in Python
 **Note: This is not production ready software**
 
 # Why?
-This project was built during the [http://dabeaz.com/raft.html](week long rafting-trip course) offered by David Beazley 
+This project was built during the [week long rafting-trip course](http://dabeaz.com/raft.html) offered by David Beazley 
+
 # PyRaft
 An implementation of the Raft Distributed Concensus Protocol in Python
 
